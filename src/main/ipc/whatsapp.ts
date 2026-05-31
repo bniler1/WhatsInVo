@@ -63,9 +63,10 @@ export function registerWhatsAppHandlers(): void {
         }
       }
 
-      connectEvents(cfg.url, cfg.sessionId)
-      // Initial sync is triggered from events.ts when session.authenticated fires,
-      // so it only runs after the session is confirmed connected.
+      // Pass the session UUID (not the name) so Socket.IO event filtering works:
+      // OpenWA emits events with payload.sessionId = UUID, not the name string.
+      const sessionUuid = (session as { id: string }).id
+      connectEvents(cfg.url, sessionUuid)
 
       return { ok: true, session }
     } catch (err) {

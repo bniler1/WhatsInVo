@@ -6,17 +6,28 @@ import { queryOne } from '../db'
 import type { WAMessage } from './client'
 
 let socket: Socket | null = null
-let currentSessionId = ''
+let currentSessionId = ''   // stores the session UUID after connectEvents() is called
 
 function emit(channel: string, data: unknown) {
   const win = BrowserWindow.getAllWindows()[0]
   win?.webContents.send(channel, data)
 }
 
-export function connectEvents(baseUrl: string, sessionId: string): void {
+function maybeSyncOnReady() {
+  const syncState = queryOne<{ last_full_sync_at: string | null }>(
+    `SELECT last_full_sync_at FROM sync_state WHERE id = 1`
+  )
+  if (!syncState?.last_full_sync_at) {
+    console.log('[Events] Session ready — starting initial sync')
+    runInitialSync().catch(err => console.error('[InitialSync] Error:', err))
+  }
+}
+
+export function connectEvents(baseUrl: string, sessionUuid: string): void {
   if (socket?.connected) disconnect()
 
-  currentSessionId = sessionId
+  // Store the UUID — OpenWA emits events with payload.sessionId = UUID
+  currentSessionId = sessionUuid
   const eventsUrl = baseUrl.replace(/\/$/, '').replace('/api', '') + '/events'
 
   socket = io(eventsUrl, {
@@ -27,12 +38,13 @@ export function connectEvents(baseUrl: string, sessionId: string): void {
   })
 
   socket.on('connect', () => {
-    console.log('[OpenWA] Socket connected')
+    console.log('[OpenWA] Socket connected, subscribing for session', sessionUuid)
     emit('wa:status', { connected: true })
 
+    // Subscribe using the UUID so OpenWA puts us in the right rooms
     socket!.emit('message', {
       type: 'subscribe',
-      sessionId,
+      sessionId: sessionUuid,
       events: [
         'message.received',
         'message.sent',
@@ -54,7 +66,14 @@ export function connectEvents(baseUrl: string, sessionId: string): void {
   socket.on('message', (data: { type: string; payload?: unknown }) => {
     if (data.type !== 'event') return
     const payload = data.payload as { event: string; sessionId: string; data: unknown }
-    if (payload.sessionId !== currentSessionId) return
+
+    // Accept events whose sessionId matches the UUID we subscribed with
+    if (payload.sessionId !== currentSessionId) {
+      console.log(`[Events] Dropped event "${payload.event}" — sessionId ${payload.sessionId} !== ${currentSessionId}`)
+      return
+    }
+
+    console.log(`[Events] Received: ${payload.event}`)
 
     switch (payload.event) {
       case 'message.received':
@@ -73,23 +92,21 @@ export function connectEvents(baseUrl: string, sessionId: string): void {
         emit('wa:qr', payload.data)
         break
       case 'session.authenticated':
+        // QR was scanned — close the modal; sync waits for 'ready'
         emit('wa:authenticated', payload.data)
-        // Trigger initial sync the first time a session is authenticated
-        {
-          const syncState = queryOne<{ last_full_sync_at: string | null }>(
-            `SELECT last_full_sync_at FROM sync_state WHERE id = 1`
-          )
-          if (!syncState?.last_full_sync_at) {
-            runInitialSync().catch(err => console.error('[InitialSync] Error:', err))
-          }
-        }
         break
       case 'session.disconnected':
         emit('wa:disconnected', payload.data)
         break
-      case 'session.status':
+      case 'session.status': {
+        const statusData = payload.data as { status: string }
         emit('wa:session-status', payload.data)
+        // 'ready' means the engine is fully connected and getChats() will work
+        if (statusData.status === 'ready' || statusData.status === 'READY') {
+          maybeSyncOnReady()
+        }
         break
+      }
     }
   })
 

@@ -107,6 +107,27 @@ export default function App() {
     }
   }, [doConnect])
 
+  // Fallback polling: when QR modal is open, poll status every 3s.
+  // This catches the "ready" transition even if Socket.IO events are delayed or missed.
+  useEffect(() => {
+    if (!showQR) return
+    const poll = setInterval(async () => {
+      try {
+        const s = await window.api.wa.status()
+        const sess = s.session as { status?: string } | undefined
+        if (sess?.status === 'ready' || sess?.status === 'READY') {
+          console.log('[App] Polling detected session ready — closing QR modal')
+          setShowQR(false)
+          setConnStatus('connected')
+          setConnectError(null)
+          // Trigger sync via IPC in case the socket event was missed
+          window.api.sync.runFull().catch(console.error)
+        }
+      } catch { /* ignore */ }
+    }, 3000)
+    return () => clearInterval(poll)
+  }, [showQR])
+
   const handleDisconnect = async () => {
     await window.api.wa.disconnect()
     setConnStatus('disconnected')
