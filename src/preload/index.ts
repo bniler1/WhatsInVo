@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('api', {
   },
   chats: {
     list:      ()                => ipcRenderer.invoke('chats:list'),
+    get:       (waId: string)    => ipcRenderer.invoke('chats:get', waId),
     markRead:  (waId: string)    => ipcRenderer.invoke('chats:mark-read', waId),
     onUpdated: (cb: (d: unknown) => void) => { ipcRenderer.on('wa:chat-updated', (_, d) => cb(d)); return () => ipcRenderer.removeAllListeners('wa:chat-updated') },
   },

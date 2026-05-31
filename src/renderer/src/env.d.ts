@@ -28,6 +28,7 @@ interface Window {
     }
     chats: {
       list(): Promise<DbChat[]>
+      get(waId: string): Promise<DbChat | undefined>
       markRead(waId: string): Promise<{ ok: boolean }>
       onUpdated(cb: (d: unknown) => void): () => void
     }

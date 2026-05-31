@@ -125,6 +125,17 @@ export class OpenWAClient {
     return this.req(`/sessions/${uuid}/contacts`)
   }
 
+  // Download media for a specific message by its WhatsApp ID (base64 returned)
+  async downloadMessageMedia(
+    messageId: string,
+    chatId: string
+  ): Promise<{ data: string; mimetype: string; filename: string } | null> {
+    const uuid = await this.resolveUuid()
+    return this.req(
+      `/sessions/${uuid}/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(messageId)}/media`
+    )
+  }
+
   // Fetch chats directly from WhatsApp (not from OpenWA DB — use for initial sync)
   async listWhatsAppChats(): Promise<WAChat[]> {
     const uuid = await this.resolveUuid()

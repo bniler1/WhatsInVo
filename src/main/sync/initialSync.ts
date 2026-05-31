@@ -122,7 +122,7 @@ export async function runInitialSync(): Promise<void> {
 
       for (const msg of messages) {
         const msgRowId = insertMessage(chatRowId, msg)
-        if (msg.hasMedia && msg.mediaUrl && msgRowId) {
+        if (msg.hasMedia && msgRowId) {
           mediaQueue.push({ msg, chatWaId: chat.id, msgRowId })
         }
       }

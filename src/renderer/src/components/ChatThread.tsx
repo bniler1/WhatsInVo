@@ -1,16 +1,24 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMessages } from '../hooks/useMessages'
 import { MessageBubble } from './MessageBubble'
 import { Composer } from './Composer'
+import type { DbChat } from '../../../shared/types'
 
 export function ChatThread() {
   const { chatId } = useParams<{ chatId: string }>()
   const decodedId = chatId ? decodeURIComponent(chatId) : ''
   const { messages, loading, loadMore } = useMessages(decodedId)
+  const [chat, setChat] = useState<DbChat | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottom = useRef(true)
+
+  // Load chat metadata (name, group flag) from local DB
+  useEffect(() => {
+    if (!decodedId) return
+    window.api.chats.get(decodedId).then(c => setChat(c ?? null))
+  }, [decodedId])
 
   useEffect(() => {
     if (isAtBottom.current) {
@@ -22,23 +30,29 @@ export function ChatThread() {
     const el = e.currentTarget
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isAtBottom.current = distFromBottom < 100
-
-    if (el.scrollTop < 80) {
-      loadMore()
-    }
+    if (el.scrollTop < 80) loadMore()
   }, [loadMore])
 
-  const displayName = decodedId.split('@')[0]
+  // Prefer stored name; fall back to the part before @ in the WhatsApp ID
+  const displayName = chat?.name || decodedId.split('@')[0]
+  const isGroup = chat?.is_group === 1
+  const initials = displayName.slice(0, 2).toUpperCase()
+  const avatarColor = isGroup ? 'bg-blue-700' : 'bg-emerald-700'
 
   return (
     <div className="flex flex-col h-full">
+      {/* Chat header */}
       <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-[#202c33] border-b border-[#2a3942]">
-        <div className="w-8 h-8 rounded-full bg-emerald-700 flex items-center justify-center text-xs font-semibold text-white shrink-0">
-          {displayName.slice(0, 2).toUpperCase()}
+        <div className={`w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-xs font-semibold text-white shrink-0`}>
+          {isGroup ? '👥' : initials}
         </div>
-        <span className="text-sm font-medium text-white">{displayName}</span>
+        <div>
+          <p className="text-sm font-medium text-white leading-tight">{displayName}</p>
+          {isGroup && <p className="text-xs text-gray-500">Group</p>}
+        </div>
       </div>
 
+      {/* Message list */}
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto py-3"
