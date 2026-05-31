@@ -153,12 +153,23 @@ function extractZip(
 // ── DB writers ────────────────────────────────────────────────────────────────
 
 function upsertImportedChat(chatName: string): number {
-  const waId = chatWaId(chatName)
-  const existing = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [waId])
-  if (existing) return existing.id
+  // 1. Exact wa_id match (previous import of same chat)
+  const importWaId = chatWaId(chatName)
+  const byImportId = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [importWaId])
+  if (byImportId) return byImportId.id
+
+  // 2. Match an existing live-synced chat by name (case-insensitive)
+  //    This ensures imported messages go into the same chat the user already sees
+  const byName = queryOne<{ id: number }>(
+    `SELECT id FROM chats WHERE lower(trim(name)) = lower(trim(?))`,
+    [chatName]
+  )
+  if (byName) return byName.id
+
+  // 3. Create a new imported chat
   return run(
     `INSERT INTO chats (wa_id, name, is_group) VALUES (?, ?, 0)`,
-    [waId, chatName]
+    [importWaId, chatName]
   )
 }
 
@@ -383,8 +394,12 @@ export async function importChat(
 
   emitProgress({ phase: 'Done', current: messages.length, total: messages.length, pct: 100 })
 
-  // Notify renderer to refresh chat list
-  BrowserWindow.getAllWindows()[0]?.webContents.send('wa:chat-updated', {})
+  // Notify renderer to refresh chat list via two events:
+  // wa:chat-updated  – same channel real-time sync uses (sidebar hook)
+  // import:done      – dedicated channel so sidebar always catches it
+  const win = BrowserWindow.getAllWindows()[0]
+  win?.webContents.send('wa:chat-updated', {})
+  win?.webContents.send('import:done', { chatName, messagesImported: msgCount, mediaImported: mediaCopied })
 
   return { ok: true, chatName, messagesImported: msgCount, mediaImported: mediaCopied }
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 interface Props {
   onClose: () => void
+  onImportDone?: () => void   // optional extra callback for parent to force refresh
 }
 
 type Step = 'pick' | 'options' | 'importing' | 'done' | 'error'
@@ -14,7 +15,7 @@ interface Progress {
   pct: number
 }
 
-export function ImportModal({ onClose }: Props) {
+export function ImportModal({ onClose, onImportDone }: Props) {
   const [step, setStep]         = useState<Step>('pick')
   const [filePath, setFilePath] = useState<string | null>(null)
   const [mode, setMode]         = useState<Mode>('append')
@@ -217,7 +218,7 @@ export function ImportModal({ onClose }: Props) {
                 Files saved to <code className="text-emerald-400">userData/chats/{result.chatName}/</code>
               </p>
               <button
-                onClick={onClose}
+                onClick={() => { onImportDone?.(); onClose() }}
                 className="w-full py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
               >
                 View Chat

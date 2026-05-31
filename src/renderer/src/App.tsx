@@ -157,7 +157,17 @@ export default function App() {
       </Routes>
 
       {showQR && <QRModal onClose={() => setShowQR(false)} />}
-      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
+          onImportDone={() => {
+            // Belt-and-suspenders: IPC events already trigger useChats to refresh,
+            // but dispatching this DOM event guarantees a reload even if IPC events
+            // arrive in an unexpected order.
+            window.dispatchEvent(new CustomEvent('whatsinvo:chats-changed'))
+          }}
+        />
+      )}
       <SyncModal />
     </div>
   )

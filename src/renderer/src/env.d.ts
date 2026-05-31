@@ -50,6 +50,7 @@ interface Window {
         ok: boolean; chatName: string; messagesImported: number; mediaImported: number; error?: string
       }>
       onProgress(cb: (d: unknown) => void): () => void
+      onDone(cb: (d: unknown) => void): () => void
     }
   }
 }
