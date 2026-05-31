@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
+import React, { useRef, useEffect, useCallback, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMessages } from '../hooks/useMessages'
 import { MessageBubble } from './MessageBubble'
@@ -65,9 +65,19 @@ export function ChatThread() {
           </div>
         )}
 
-        {messages.map(msg => (
-          <MessageBubble key={msg.wa_message_id || msg.id} msg={msg} />
-        ))}
+        {messages.reduce<React.ReactNode[]>((nodes, msg, i) => {
+          const dateStr = new Date(msg.timestamp * 1000).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })
+          const prevDate = i > 0 ? new Date(messages[i - 1].timestamp * 1000).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' }) : null
+          if (dateStr !== prevDate) {
+            nodes.push(
+              <div key={`sep-${dateStr}`} className="flex justify-center my-3">
+                <span className="text-xs text-gray-400 bg-[#182229] px-3 py-1 rounded-full select-none">{dateStr}</span>
+              </div>
+            )
+          }
+          nodes.push(<MessageBubble key={msg.wa_message_id || msg.id} msg={msg} />)
+          return nodes
+        }, [])}
 
         <div ref={bottomRef} />
       </div>
