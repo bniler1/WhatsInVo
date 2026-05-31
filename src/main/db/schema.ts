@@ -72,6 +72,9 @@ export function createTables(db: Database): void {
 
   db.run(`INSERT OR IGNORE INTO sync_state (id, status) VALUES (1, 'idle')`)
 
+  // Migration: add is_imported flag (safe no-op if column already exists)
+  try { db.run(`ALTER TABLE chats ADD COLUMN is_imported INTEGER NOT NULL DEFAULT 0`) } catch {}
+
   db.run(`CREATE INDEX IF NOT EXISTS idx_messages_chat_id   ON messages(chat_id)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_chats_last_msg     ON chats(last_message_at DESC)`)

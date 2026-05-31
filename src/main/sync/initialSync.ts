@@ -120,6 +120,18 @@ export async function runInitialSync(): Promise<void> {
         continue
       }
 
+      // Imported chats are the permanent record — only add messages newer
+      // than what's already stored so historical WA data never overwrites them.
+      const isImported = queryOne<{ is_imported: number }>(
+        `SELECT is_imported FROM chats WHERE id = ?`, [chatRowId]
+      )?.is_imported === 1
+      if (isImported) {
+        const latestTs = queryOne<{ ts: number | null }>(
+          `SELECT MAX(timestamp) as ts FROM messages WHERE chat_id = ?`, [chatRowId]
+        )?.ts ?? 0
+        messages = messages.filter(m => m.timestamp > latestTs)
+      }
+
       for (const msg of messages) {
         const msgRowId = insertMessage(chatRowId, msg)
         if (msg.hasMedia && msgRowId) {

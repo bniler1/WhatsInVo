@@ -20,6 +20,7 @@ export interface DbChat {
   synced_at: string | null
   created_at: string
   avatar_path?: string | null
+  is_imported: number
 }
 
 export interface DbMessage {
