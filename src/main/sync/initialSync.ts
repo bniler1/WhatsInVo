@@ -2,31 +2,54 @@ import { BrowserWindow } from 'electron'
 import { db, persist, queryOne, run } from '../db'
 import { getClient } from '../whatsapp/client'
 import { downloadAndSaveMedia } from './mediaDownloader'
-import type { WAContact, WAMessage } from '../whatsapp/client'
+import type { WAMessage, WAChat } from '../whatsapp/client'
 
 function emitProgress(win: BrowserWindow | undefined, phase: string, pct: number, chatName = '') {
   win?.webContents.send('sync:progress', { status: 'syncing', phase, pct, chatName })
 }
 
-function upsertContact(c: WAContact): number {
-  const existing = queryOne<{ id: number }>(`SELECT id FROM contacts WHERE wa_id = ?`, [c.id])
+function upsertChat(chat: WAChat): number {
+  const existing = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [chat.id])
   if (existing) {
-    db.run(`UPDATE contacts SET name = ?, push_name = ?, phone = ? WHERE id = ?`,
-      [c.name || '', c.pushname || '', c.number || '', existing.id])
+    db.run(
+      `UPDATE chats SET name = ?, is_group = ?, last_message_at = ?, last_message_preview = ?
+       WHERE id = ?`,
+      [
+        chat.name || '',
+        chat.isGroup ? 1 : 0,
+        chat.lastMessage?.timestamp ?? null,
+        (chat.lastMessage?.body || '').slice(0, 100),
+        existing.id,
+      ]
+    )
     return existing.id
   }
-  return run(
-    `INSERT INTO contacts (wa_id, name, push_name, phone) VALUES (?, ?, ?, ?)`,
-    [c.id, c.name || '', c.pushname || '', c.number || '']
-  )
-}
 
-function upsertChat(contactId: number, c: WAContact): number {
-  const existing = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [c.id])
-  if (existing) return existing.id
+  // Upsert contact for 1:1 chats
+  let contactId: number | null = null
+  if (!chat.isGroup) {
+    const existingContact = queryOne<{ id: number }>(`SELECT id FROM contacts WHERE wa_id = ?`, [chat.id])
+    if (existingContact) {
+      contactId = existingContact.id
+    } else {
+      contactId = run(
+        `INSERT INTO contacts (wa_id, name, push_name, phone) VALUES (?, ?, ?, ?)`,
+        [chat.id, chat.name || '', chat.name || '', chat.id.replace(/@.*/, '')]
+      )
+    }
+  }
+
   return run(
-    `INSERT INTO chats (wa_id, name, contact_id, is_group) VALUES (?, ?, ?, ?)`,
-    [c.id, c.name || '', contactId, c.isGroup ? 1 : 0]
+    `INSERT INTO chats (wa_id, name, contact_id, is_group, last_message_at, last_message_preview)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      chat.id,
+      chat.name || '',
+      contactId,
+      chat.isGroup ? 1 : 0,
+      chat.lastMessage?.timestamp ?? null,
+      (chat.lastMessage?.body || '').slice(0, 100),
+    ]
   )
 }
 
@@ -35,6 +58,7 @@ function insertMessage(chatId: number, msg: WAMessage): number {
     `SELECT id FROM messages WHERE wa_message_id = ?`, [msg.id]
   )
   if (existing) return existing.id
+
   return run(
     `INSERT INTO messages
        (chat_id, wa_message_id, timestamp, sender_wa_id, sender_name, body, type, direction,
@@ -52,7 +76,7 @@ function insertMessage(chatId: number, msg: WAMessage): number {
       msg.hasMedia ? 1 : 0,
       msg.caption || '',
       msg.filename || '',
-      msg.mimetype || ''
+      msg.mimetype || '',
     ]
   )
 }
@@ -61,67 +85,58 @@ export async function runInitialSync(): Promise<void> {
   const win = BrowserWindow.getAllWindows()[0]
   const client = getClient()
 
-  // Mark sync started
   db.run(`UPDATE sync_state SET status = 'syncing' WHERE id = 1`)
   persist()
 
   try {
-    emitProgress(win, 'Fetching contacts…', 0)
-    const contacts = await client.listContacts()
+    emitProgress(win, 'Fetching chat list from WhatsApp…', 0)
 
-    const mediaQueue: Array<{ msg: WAMessage; chatWaId: string; msgRowId: number }> = []
+    // Use the new direct-from-WhatsApp endpoint (not the DB-backed one)
+    const chats = await client.listWhatsAppChats()
 
-    for (let i = 0; i < contacts.length; i++) {
-      const contact = contacts[i]
-      const pct = Math.round((i / contacts.length) * 75)
-      emitProgress(win, 'Syncing messages', pct, contact.name || contact.id)
-
-      const contactId = upsertContact(contact)
-      const chatId = upsertChat(contactId, contact)
-
-      // Paginate all messages for this chat
-      let offset = 0
-      const pageSize = 100
-      while (true) {
-        let page: WAMessage[]
-        try {
-          page = await client.listMessages(contact.id, pageSize, offset)
-        } catch {
-          break
-        }
-        if (!page || page.length === 0) break
-
-        for (const msg of page) {
-          const msgRowId = insertMessage(chatId, msg)
-          if (msg.hasMedia && msg.mediaUrl && msgRowId) {
-            mediaQueue.push({ msg, chatWaId: contact.id, msgRowId })
-          }
-        }
-
-        // Update chat's last_message_at from the most recent message
-        if (offset === 0 && page.length > 0) {
-          const latest = page.reduce((a, b) => a.timestamp > b.timestamp ? a : b)
-          const preview = (latest.body || (latest.hasMedia ? `[${latest.type}]` : '')).slice(0, 100)
-          db.run(
-            `UPDATE chats SET last_message_at = ?, last_message_preview = ? WHERE id = ?`,
-            [latest.timestamp, preview, chatId]
-          )
-        }
-
-        persist()
-
-        if (page.length < pageSize) break
-        offset += pageSize
-      }
+    if (!chats || chats.length === 0) {
+      console.warn('[InitialSync] No chats returned — session may not be ready yet')
+      db.run(`UPDATE sync_state SET status = 'idle' WHERE id = 1`)
+      persist()
+      return
     }
 
-    // Download media (best-effort, non-blocking errors)
+    console.log(`[InitialSync] Syncing ${chats.length} chats`)
+    const mediaQueue: Array<{ msg: WAMessage; chatWaId: string; msgRowId: number }> = []
+
+    for (let i = 0; i < chats.length; i++) {
+      const chat = chats[i]
+      const pct = Math.round((i / chats.length) * 75)
+      emitProgress(win, 'Downloading messages', pct, chat.name || chat.id)
+
+      const chatRowId = upsertChat(chat)
+
+      // Fetch message history directly from WhatsApp for this chat
+      let messages: WAMessage[] = []
+      try {
+        messages = await client.fetchChatMessages(chat.id, 100)
+      } catch (err) {
+        console.warn(`[InitialSync] Could not fetch messages for ${chat.id}:`, err)
+        continue
+      }
+
+      for (const msg of messages) {
+        const msgRowId = insertMessage(chatRowId, msg)
+        if (msg.hasMedia && msg.mediaUrl && msgRowId) {
+          mediaQueue.push({ msg, chatWaId: chat.id, msgRowId })
+        }
+      }
+
+      persist()
+    }
+
+    // Download media files (best-effort)
     const total = mediaQueue.length
     for (let i = 0; i < total; i++) {
       const { msg, chatWaId, msgRowId } = mediaQueue[i]
-      const pct = 75 + Math.round((i / Math.max(total, 1)) * 20)
-      if (i % 10 === 0) emitProgress(win, 'Downloading media', pct)
-
+      if (i % 10 === 0) {
+        emitProgress(win, 'Downloading media', 75 + Math.round((i / Math.max(total, 1)) * 20))
+      }
       try {
         const filePath = await downloadAndSaveMedia(msg, chatWaId)
         if (filePath) {
@@ -133,7 +148,7 @@ export async function runInitialSync(): Promise<void> {
           db.run(`UPDATE messages SET media_id = ? WHERE id = ?`, [mediaId, msgRowId])
         }
       } catch {
-        // skip individual media failures
+        // skip individual media failures silently
       }
     }
 
@@ -142,8 +157,9 @@ export async function runInitialSync(): Promise<void> {
 
     win?.webContents.send('sync:progress', { status: 'done', phase: 'Complete', pct: 100, chatName: '' })
     win?.webContents.send('wa:chat-updated', {})
+    console.log(`[InitialSync] Done — ${chats.length} chats synced`)
   } catch (err) {
-    console.error('[InitialSync] Error:', err)
+    console.error('[InitialSync] Fatal error:', err)
     db.run(`UPDATE sync_state SET status = 'error' WHERE id = 1`)
     persist()
     win?.webContents.send('sync:progress', { status: 'error', phase: String(err), pct: 0, chatName: '' })

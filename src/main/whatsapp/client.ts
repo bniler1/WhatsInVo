@@ -125,6 +125,21 @@ export class OpenWAClient {
     return this.req(`/sessions/${uuid}/contacts`)
   }
 
+  // Fetch chats directly from WhatsApp (not from OpenWA DB — use for initial sync)
+  async listWhatsAppChats(): Promise<WAChat[]> {
+    const uuid = await this.resolveUuid()
+    return this.req(`/sessions/${uuid}/chats`)
+  }
+
+  // Fetch message history directly from WhatsApp for a specific chat
+  async fetchChatMessages(chatId: string, limit = 100): Promise<WAMessage[]> {
+    const uuid = await this.resolveUuid()
+    return this.req(
+      `/sessions/${uuid}/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`
+    )
+  }
+
+  // Query OpenWA's stored messages (only useful for already-received messages)
   async listMessages(chatId: string, limit = 50, offset = 0): Promise<WAMessage[]> {
     const uuid = await this.resolveUuid()
     return this.req(
