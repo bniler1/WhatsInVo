@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+release/
+
+# OpenWA junction — do not commit the junction itself as a directory
+# (re-create with: mklink /J openwa ..\claudecodetest1\openwa)
+openwa/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Database & user data
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# electron-builder cache
+buildResources/
+
+# TypeScript cache
+*.tsbuildinfo

@@ -1,0 +1,38 @@
+appId: com.whatsinvo.app
+productName: WhatsInVo
+copyright: Copyright © 2026
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - out/**/*
+  - package.json
+
+extraResources:
+  - from: openwa
+    to: openwa
+    filter:
+      - "**/*"
+      - "!node_modules/.cache/**"
+      - "!.git/**"
+      - "!data/**"
+
+asarUnpack:
+  - node_modules/sql.js/**
+
+win:
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: x64
+  artifactName: WhatsInVo-${version}-Setup.exe
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: WhatsInVo
