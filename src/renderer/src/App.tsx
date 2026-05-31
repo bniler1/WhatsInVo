@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import { TopBar } from './components/TopBar'
 import { QRModal } from './components/QRModal'
 import { SyncModal } from './components/SyncModal'
@@ -12,6 +12,7 @@ type ConnStatus = 'disconnected' | 'connecting' | 'connected'
 type ServerStatus = 'stopped' | 'starting' | 'running' | 'error'
 
 export default function App() {
+  const navigate = useNavigate()
   const [connStatus, setConnStatus]     = useState<ConnStatus>('disconnected')
   const [serverStatus, setServerStatus] = useState<ServerStatus>('stopped')
   const [showQR, setShowQR]             = useState(false)
@@ -160,11 +161,9 @@ export default function App() {
       {showImport && (
         <ImportModal
           onClose={() => setShowImport(false)}
-          onImportDone={() => {
-            // Belt-and-suspenders: IPC events already trigger useChats to refresh,
-            // but dispatching this DOM event guarantees a reload even if IPC events
-            // arrive in an unexpected order.
+          onImportDone={(waId) => {
             window.dispatchEvent(new CustomEvent('whatsinvo:chats-changed'))
+            navigate(`/${encodeURIComponent(waId)}`)
           }}
         />
       )}

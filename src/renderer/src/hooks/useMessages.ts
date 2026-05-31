@@ -9,10 +9,14 @@ export function useMessages(chatWaId: string) {
     if (!chatWaId) return
     setLoading(true)
 
-    window.api.messages.list(chatWaId, 50).then(msgs => {
-      setMessages([...msgs].reverse())
-      setLoading(false)
-    })
+    const fetchLatest = () => {
+      window.api.messages.list(chatWaId, 50).then(msgs => {
+        setMessages([...msgs].reverse())
+        setLoading(false)
+      })
+    }
+
+    fetchLatest()
     window.api.chats.markRead(chatWaId)
 
     const unsubAppended = window.api.messages.onAppended((d) => {
@@ -35,9 +39,15 @@ export function useMessages(chatWaId: string) {
       ))
     })
 
+    const unsubImport = window.api.import.onDone((d) => {
+      const data = d as { waId: string }
+      if (data.waId === chatWaId) fetchLatest()
+    })
+
     return () => {
       unsubAppended()
       unsubUpdated()
+      unsubImport()
     }
   }, [chatWaId])
 

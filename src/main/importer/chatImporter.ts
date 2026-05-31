@@ -34,6 +34,7 @@ export interface ImportProgress {
 export interface ImportResult {
   ok: boolean
   chatName: string
+  waId: string
   messagesImported: number
   mediaImported: number
   error?: string
@@ -293,14 +294,14 @@ export async function importChat(
     // Folder — look for a .txt file inside
     const files = readdirSync(sourcePath)
     const txt = files.find(f => /\.txt$/i.test(f))
-    if (!txt) return { ok: false, chatName: '', messagesImported: 0, mediaImported: 0, error: 'No .txt file found in folder' }
+    if (!txt) return { ok: false, chatName: '', waId: '', messagesImported: 0, mediaImported: 0, error: 'No .txt file found in folder' }
     chatTxtPath = join(sourcePath, txt)
     mediaSourceDir = sourcePath
     chatName = basename(sourcePath)
   }
 
   if (!chatTxtPath || !existsSync(chatTxtPath)) {
-    return { ok: false, chatName: '', messagesImported: 0, mediaImported: 0, error: 'Could not find chat text file' }
+    return { ok: false, chatName: '', waId: '', messagesImported: 0, mediaImported: 0, error: 'Could not find chat text file' }
   }
 
   // ── Phase 2: parse messages ──────────────────────────────────────────────────
@@ -310,7 +311,7 @@ export async function importChat(
   const messages = parseChatText(chatText)
 
   if (messages.length === 0) {
-    return { ok: false, chatName, messagesImported: 0, mediaImported: 0, error: 'No messages found in the chat file' }
+    return { ok: false, chatName, waId: '', messagesImported: 0, mediaImported: 0, error: 'No messages found in the chat file' }
   }
 
   // ── Phase 3: create per-chat folder ─────────────────────────────────────────
@@ -399,7 +400,7 @@ export async function importChat(
   // import:done      – dedicated channel so sidebar always catches it
   const win = BrowserWindow.getAllWindows()[0]
   win?.webContents.send('wa:chat-updated', {})
-  win?.webContents.send('import:done', { chatName, messagesImported: msgCount, mediaImported: mediaCopied })
+  win?.webContents.send('import:done', { chatName, waId: chatWaId(chatName), messagesImported: msgCount, mediaImported: mediaCopied })
 
-  return { ok: true, chatName, messagesImported: msgCount, mediaImported: mediaCopied }
+  return { ok: true, chatName, waId: chatWaId(chatName), messagesImported: msgCount, mediaImported: mediaCopied }
 }
