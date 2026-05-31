@@ -156,25 +156,18 @@ function extractZip(
 function upsertImportedChat(chatName: string): { id: number; waId: string; wasImported: boolean } {
   const importWaId = chatWaId(chatName)
 
-  // 1. Exact wa_id match (previous import of same chat)
-  const byImportId = queryOne<{ id: number; is_imported: number }>(`SELECT id, is_imported FROM chats WHERE wa_id = ?`, [importWaId])
-  if (byImportId) {
-    db.run(`UPDATE chats SET is_imported = 1 WHERE id = ?`, [byImportId.id])
-    return { id: byImportId.id, waId: importWaId, wasImported: byImportId.is_imported === 1 }
-  }
-
-  // 2. Match an existing live-synced chat by name (case-insensitive) — use its actual wa_id
-  //    so navigation always goes to the chat where the messages are stored.
-  const byName = queryOne<{ id: number; wa_id: string; is_imported: number }>(
-    `SELECT id, wa_id, is_imported FROM chats WHERE lower(trim(name)) = lower(trim(?))`,
-    [chatName]
+  // Look for an existing imported record — matched only by the generated import wa_id,
+  // never by name against live chats. Keeping imported records under their own wa_id
+  // ensures live WhatsApp sync (which only processes @c.us / @g.us ids) can never
+  // touch them, which is what makes the imported history permanent.
+  const existing = queryOne<{ id: number; is_imported: number }>(
+    `SELECT id, is_imported FROM chats WHERE wa_id = ?`, [importWaId]
   )
-  if (byName) {
-    db.run(`UPDATE chats SET is_imported = 1 WHERE id = ?`, [byName.id])
-    return { id: byName.id, waId: byName.wa_id, wasImported: byName.is_imported === 1 }
+  if (existing) {
+    db.run(`UPDATE chats SET is_imported = 1 WHERE id = ?`, [existing.id])
+    return { id: existing.id, waId: importWaId, wasImported: existing.is_imported === 1 }
   }
 
-  // 3. Create a new imported chat
   const id = run(`INSERT INTO chats (wa_id, name, is_group, is_imported) VALUES (?, ?, 0, 1)`, [importWaId, chatName])
   return { id, waId: importWaId, wasImported: false }
 }
