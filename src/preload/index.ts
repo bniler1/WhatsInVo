@@ -38,5 +38,10 @@ contextBridge.exposeInMainWorld('api', {
     state:      ()  => ipcRenderer.invoke('sync:state'),
     runFull:    ()  => ipcRenderer.invoke('sync:run-full'),
     onProgress: (cb: (d: unknown) => void) => { ipcRenderer.on('sync:progress', (_, d) => cb(d)); return () => ipcRenderer.removeAllListeners('sync:progress') },
-  }
+  },
+  import: {
+    pickFile: ()                                                              => ipcRenderer.invoke('import:pick-file'),
+    run:      (path: string, mode: string, ownersName: string | null)         => ipcRenderer.invoke('import:run', path, mode, ownersName),
+    onProgress: (cb: (d: unknown) => void) => { ipcRenderer.on('import:progress', (_, d) => cb(d)); return () => ipcRenderer.removeAllListeners('import:progress') },
+  },
 })

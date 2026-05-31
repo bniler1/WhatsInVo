@@ -44,6 +44,13 @@ interface Window {
       runFull(): Promise<{ ok: boolean; error?: string }>
       onProgress(cb: (d: unknown) => void): () => void
     }
+    import: {
+      pickFile(): Promise<string | null>
+      run(path: string, mode: string, ownersName: string | null): Promise<{
+        ok: boolean; chatName: string; messagesImported: number; mediaImported: number; error?: string
+      }>
+      onProgress(cb: (d: unknown) => void): () => void
+    }
   }
 }
 }

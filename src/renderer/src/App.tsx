@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import { TopBar } from './components/TopBar'
 import { QRModal } from './components/QRModal'
 import { SyncModal } from './components/SyncModal'
+import { ImportModal } from './components/ImportModal'
 import { Home, EmptyThread } from './pages/Home'
 import { ChatThread } from './components/ChatThread'
 import { Settings } from './pages/Settings'
@@ -14,6 +15,7 @@ export default function App() {
   const [connStatus, setConnStatus]     = useState<ConnStatus>('disconnected')
   const [serverStatus, setServerStatus] = useState<ServerStatus>('stopped')
   const [showQR, setShowQR]             = useState(false)
+  const [showImport, setShowImport]     = useState(false)
   const [connectError, setConnectError] = useState<string | null>(null)
   // Prevent double-connect if server-ready event fires while already connecting
   const connectingRef = useRef(false)
@@ -147,7 +149,7 @@ export default function App() {
       />
 
       <Routes>
-        <Route path="/" element={<Home />}>
+        <Route path="/" element={<Home onImport={() => setShowImport(true)} />}>
           <Route index element={<EmptyThread />} />
           <Route path=":chatId" element={<ChatThread />} />
         </Route>
@@ -155,6 +157,7 @@ export default function App() {
       </Routes>
 
       {showQR && <QRModal onClose={() => setShowQR(false)} />}
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
       <SyncModal />
     </div>
   )
