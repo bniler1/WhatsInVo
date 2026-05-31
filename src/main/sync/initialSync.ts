@@ -120,12 +120,18 @@ export async function runInitialSync(): Promise<void> {
         continue
       }
 
-      // Imported chats are the permanent record — only add messages newer
-      // than what's already stored so historical WA data never overwrites them.
-      const isImported = queryOne<{ is_imported: number }>(
-        `SELECT is_imported FROM chats WHERE id = ?`, [chatRowId]
-      )?.is_imported === 1
-      if (isImported) {
+      // Respect cleared and imported chats
+      const chatMeta = queryOne<{ cleared_at: string | null; is_imported: number }>(
+        `SELECT cleared_at, is_imported FROM chats WHERE id = ?`, [chatRowId]
+      )
+      if (chatMeta?.cleared_at) {
+        // User explicitly cleared this chat — never restore its messages via sync
+        persist()
+        continue
+      }
+      if (chatMeta?.is_imported) {
+        // Imported chats are the permanent record — only add messages newer
+        // than what's already stored so historical WA data never overwrites them.
         const latestTs = queryOne<{ ts: number | null }>(
           `SELECT MAX(timestamp) as ts FROM messages WHERE chat_id = ?`, [chatRowId]
         )?.ts ?? 0

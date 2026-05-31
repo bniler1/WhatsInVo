@@ -372,6 +372,9 @@ export async function importChat(
 
   const { id: chatId, waId: actualWaId, wasImported } = upsertImportedChat(chatName)
 
+  // Clear any previous cleared_at so WhatsApp can append new messages after import
+  db.run(`UPDATE chats SET cleared_at = NULL WHERE id = ?`, [chatId])
+
   // Permanent-record rule: once a chat has been imported, subsequent imports
   // can only append — live history already replaced cannot be overwritten again.
   const effectiveMode = wasImported && mode === 'overwrite' ? 'append' : mode

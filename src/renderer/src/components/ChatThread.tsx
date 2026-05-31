@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useMessages } from '../hooks/useMessages'
 import { MessageBubble } from './MessageBubble'
 import { Composer } from './Composer'
@@ -8,8 +8,10 @@ import type { DbChat } from '../../../shared/types'
 export function ChatThread() {
   const { chatId } = useParams<{ chatId: string }>()
   const decodedId = chatId ? decodeURIComponent(chatId) : ''
+  const navigate = useNavigate()
   const { messages, loading, loadMore } = useMessages(decodedId)
   const [chat, setChat] = useState<DbChat | null>(null)
+  const [confirmClear, setConfirmClear] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottom = useRef(true)
@@ -25,6 +27,13 @@ export function ChatThread() {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages.length])
+
+  const handleClear = useCallback(async () => {
+    if (!confirmClear) { setConfirmClear(true); return }
+    setConfirmClear(false)
+    await window.api.chats.clearMessages(decodedId)
+    navigate('/')
+  }, [confirmClear, decodedId, navigate])
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget
@@ -46,10 +55,25 @@ export function ChatThread() {
         <div className={`w-8 h-8 rounded-full ${avatarColor} flex items-center justify-center text-xs font-semibold text-white shrink-0`}>
           {isGroup ? '👥' : initials}
         </div>
-        <div>
-          <p className="text-sm font-medium text-white leading-tight">{displayName}</p>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-white leading-tight truncate">{displayName}</p>
           {isGroup && <p className="text-xs text-gray-500">Group</p>}
         </div>
+        {confirmClear ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-red-400">Clear all messages?</span>
+            <button onClick={handleClear} className="text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 rounded bg-red-900/30 hover:bg-red-900/50 transition-colors">Confirm</button>
+            <button onClick={() => setConfirmClear(false)} className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-[#2a3942] hover:bg-[#374650] transition-colors">Cancel</button>
+          </div>
+        ) : (
+          <button
+            onClick={handleClear}
+            title="Clear all messages from this chat"
+            className="shrink-0 text-gray-500 hover:text-red-400 transition-colors p-1 rounded"
+          >
+            🗑
+          </button>
+        )}
       </div>
 
       {/* Message list */}

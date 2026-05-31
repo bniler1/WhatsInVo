@@ -30,6 +30,7 @@ interface Window {
       list(): Promise<DbChat[]>
       get(waId: string): Promise<DbChat | undefined>
       markRead(waId: string): Promise<{ ok: boolean }>
+      clearMessages(waId: string): Promise<{ ok: boolean; error?: string }>
       onUpdated(cb: (d: unknown) => void): () => void
     }
     messages: {

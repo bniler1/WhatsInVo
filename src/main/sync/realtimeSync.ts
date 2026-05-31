@@ -33,6 +33,12 @@ export function handleIncomingMessage(msg: WAMessage): void {
   const chatName = chatWaId
   const chatId = getOrCreateChat(chatWaId, chatName, isGroup)
 
+  // Never insert into a chat the user has cleared
+  const chatMeta = queryOne<{ cleared_at: string | null }>(
+    `SELECT cleared_at FROM chats WHERE id = ?`, [chatId]
+  )
+  if (chatMeta?.cleared_at) return
+
   const senderName = msg.author || (msg.fromMe ? 'Me' : msg.from)
 
   db.run(
