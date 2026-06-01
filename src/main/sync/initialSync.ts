@@ -4,8 +4,11 @@ import { getClient } from '../whatsapp/client'
 import { downloadAndSaveMedia } from './mediaDownloader'
 import type { WAMessage, WAChat } from '../whatsapp/client'
 
+let _abortRequested = false
+export function requestAbort() { _abortRequested = true }
+
 function emitProgress(win: BrowserWindow | undefined, phase: string, pct: number, chatName = '') {
-  win?.webContents.send('sync:progress', { status: 'syncing', phase, pct, chatName })
+  win?.webContents.send('sync:progress', { status: 'syncing', phase, pct: Math.min(Math.round(pct), 99), chatName })
 }
 
 function upsertChat(chat: WAChat): number {
@@ -82,6 +85,7 @@ function insertMessage(chatId: number, msg: WAMessage): number {
 }
 
 export async function runInitialSync(): Promise<void> {
+  _abortRequested = false
   const win = BrowserWindow.getAllWindows()[0]
   const client = getClient()
 
@@ -89,7 +93,7 @@ export async function runInitialSync(): Promise<void> {
   persist()
 
   try {
-    emitProgress(win, 'Fetching chat list from WhatsApp…', 0)
+    emitProgress(win, 'Fetching chat list from WhatsApp…', 1)
 
     // Use the new direct-from-WhatsApp endpoint (not the DB-backed one)
     const chats = await client.listWhatsAppChats()
@@ -105,8 +109,9 @@ export async function runInitialSync(): Promise<void> {
     const mediaQueue: Array<{ msg: WAMessage; chatWaId: string; msgRowId: number }> = []
 
     for (let i = 0; i < chats.length; i++) {
+      if (_abortRequested) break
       const chat = chats[i]
-      const pct = Math.round((i / chats.length) * 75)
+      const pct = 1 + Math.round((i / chats.length) * 74)
       emitProgress(win, 'Downloading messages', pct, chat.name || chat.id)
 
       const chatRowId = upsertChat(chat)
@@ -147,9 +152,10 @@ export async function runInitialSync(): Promise<void> {
     // Download media files — with pacing to avoid rate limits
     const total = mediaQueue.length
     for (let i = 0; i < total; i++) {
+      if (_abortRequested) break
       const { msg, chatWaId, msgRowId } = mediaQueue[i]
-      if (i % 10 === 0) {
-        emitProgress(win, 'Downloading media', 75 + Math.round((i / Math.max(total, 1)) * 20))
+      if (i % 5 === 0) {
+        emitProgress(win, 'Downloading media files', 75 + Math.round((i / Math.max(total, 1)) * 24))
       }
       await new Promise(r => setTimeout(r, 300))   // 300ms between downloads
       try {
@@ -165,6 +171,15 @@ export async function runInitialSync(): Promise<void> {
       } catch {
         // individual failures already logged inside downloadAndSaveMedia
       }
+    }
+
+    if (_abortRequested) {
+      db.run(`UPDATE sync_state SET status = 'idle' WHERE id = 1`)
+      persist()
+      win?.webContents.send('sync:progress', { status: 'aborted', phase: 'Download cancelled', pct: 0, chatName: '' })
+      win?.webContents.send('wa:chat-updated', {})
+      console.log('[InitialSync] Aborted by user')
+      return
     }
 
     db.run(`UPDATE sync_state SET status = 'done', last_full_sync_at = datetime('now') WHERE id = 1`)

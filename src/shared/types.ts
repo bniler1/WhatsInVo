@@ -55,7 +55,7 @@ export interface DbMedia {
 }
 
 export interface SyncProgress {
-  status: 'idle' | 'syncing' | 'done' | 'error'
+  status: 'idle' | 'syncing' | 'done' | 'error' | 'aborted'
   pct: number
   chatName: string
   phase: string

@@ -51,6 +51,7 @@ interface Window {
     sync: {
       state(): Promise<SyncProgress>
       runFull(): Promise<{ ok: boolean; error?: string }>
+      abort(): Promise<{ ok: boolean }>
       onProgress(cb: (d: unknown) => void): () => void
     }
     import: {

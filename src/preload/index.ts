@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('api', {
   sync: {
     state:      ()  => ipcRenderer.invoke('sync:state'),
     runFull:    ()  => ipcRenderer.invoke('sync:run-full'),
+    abort:      ()  => ipcRenderer.invoke('sync:abort'),
     onProgress: (cb: (d: unknown) => void) => on('sync:progress', cb),
   },
   import: {
