@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 interface Props {
   onClose: () => void
-  onImportDone?: () => void   // optional extra callback for parent to force refresh
+  onImportDone?: (waId: string) => void
 }
 
 type Step = 'pick' | 'options' | 'importing' | 'done' | 'error'
@@ -21,7 +21,7 @@ export function ImportModal({ onClose, onImportDone }: Props) {
   const [mode, setMode]         = useState<Mode>('append')
   const [ownersName, setOwnersName] = useState('')
   const [progress, setProgress] = useState<Progress>({ phase: '', current: 0, total: 0, pct: 0 })
-  const [result, setResult]     = useState<{ chatName: string; messages: number; media: number } | null>(null)
+  const [result, setResult]     = useState<{ chatName: string; messages: number; media: number; waId: string } | null>(null)
   const [error, setError]       = useState<string | null>(null)
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function ImportModal({ onClose, onImportDone }: Props) {
 
     const res = await window.api.import.run(filePath, mode, ownersName.trim() || null)
     if (res.ok) {
-      setResult({ chatName: res.chatName, messages: res.messagesImported, media: res.mediaImported })
+      setResult({ chatName: res.chatName, messages: res.messagesImported, media: res.mediaImported, waId: res.waId })
       setStep('done')
     } else {
       setError(res.error ?? 'Unknown error')
@@ -218,7 +218,7 @@ export function ImportModal({ onClose, onImportDone }: Props) {
                 Files saved to <code className="text-emerald-400">userData/chats/{result.chatName}/</code>
               </p>
               <button
-                onClick={() => { onImportDone?.(); onClose() }}
+                onClick={() => { onImportDone?.(result!.waId); onClose() }}
                 className="w-full py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
               >
                 View Chat

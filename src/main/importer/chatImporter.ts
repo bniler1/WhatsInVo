@@ -34,6 +34,7 @@ export interface ImportProgress {
 export interface ImportResult {
   ok: boolean
   chatName: string
+  waId: string
   messagesImported: number
   mediaImported: number
   error?: string
@@ -152,25 +153,23 @@ function extractZip(
 
 // ── DB writers ────────────────────────────────────────────────────────────────
 
-function upsertImportedChat(chatName: string): number {
-  // 1. Exact wa_id match (previous import of same chat)
+function upsertImportedChat(chatName: string): { id: number; waId: string } {
   const importWaId = chatWaId(chatName)
-  const byImportId = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [importWaId])
-  if (byImportId) return byImportId.id
 
-  // 2. Match an existing live-synced chat by name (case-insensitive)
-  //    This ensures imported messages go into the same chat the user already sees
-  const byName = queryOne<{ id: number }>(
-    `SELECT id FROM chats WHERE lower(trim(name)) = lower(trim(?))`,
+  // 1. Exact wa_id match (previous import of same chat)
+  const byImportId = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [importWaId])
+  if (byImportId) return { id: byImportId.id, waId: importWaId }
+
+  // 2. Match an existing live-synced chat by name — return its actual wa_id so navigation lands correctly
+  const byName = queryOne<{ id: number; wa_id: string }>(
+    `SELECT id, wa_id FROM chats WHERE lower(trim(name)) = lower(trim(?))`,
     [chatName]
   )
-  if (byName) return byName.id
+  if (byName) return { id: byName.id, waId: byName.wa_id }
 
   // 3. Create a new imported chat
-  return run(
-    `INSERT INTO chats (wa_id, name, is_group) VALUES (?, ?, 0)`,
-    [importWaId, chatName]
-  )
+  const id = run(`INSERT INTO chats (wa_id, name, is_group) VALUES (?, ?, 0)`, [importWaId, chatName])
+  return { id, waId: importWaId }
 }
 
 function clearChatMessages(chatId: number): void {
@@ -293,14 +292,14 @@ export async function importChat(
     // Folder — look for a .txt file inside
     const files = readdirSync(sourcePath)
     const txt = files.find(f => /\.txt$/i.test(f))
-    if (!txt) return { ok: false, chatName: '', messagesImported: 0, mediaImported: 0, error: 'No .txt file found in folder' }
+    if (!txt) return { ok: false, chatName: '', waId: '', messagesImported: 0, mediaImported: 0, error: 'No .txt file found in folder' }
     chatTxtPath = join(sourcePath, txt)
     mediaSourceDir = sourcePath
     chatName = basename(sourcePath)
   }
 
   if (!chatTxtPath || !existsSync(chatTxtPath)) {
-    return { ok: false, chatName: '', messagesImported: 0, mediaImported: 0, error: 'Could not find chat text file' }
+    return { ok: false, chatName: '', waId: '', messagesImported: 0, mediaImported: 0, error: 'Could not find chat text file' }
   }
 
   // ── Phase 2: parse messages ──────────────────────────────────────────────────
@@ -310,7 +309,7 @@ export async function importChat(
   const messages = parseChatText(chatText)
 
   if (messages.length === 0) {
-    return { ok: false, chatName, messagesImported: 0, mediaImported: 0, error: 'No messages found in the chat file' }
+    return { ok: false, chatName, waId: '', messagesImported: 0, mediaImported: 0, error: 'No messages found in the chat file' }
   }
 
   // ── Phase 3: create per-chat folder ─────────────────────────────────────────
@@ -371,7 +370,7 @@ export async function importChat(
 
   // ── Phase 5: write to DB ─────────────────────────────────────────────────────
 
-  const chatId = upsertImportedChat(chatName)
+  const { id: chatId, waId: actualWaId } = upsertImportedChat(chatName)
   if (mode === 'overwrite') clearChatMessages(chatId)
 
   let msgCount = 0
@@ -394,12 +393,9 @@ export async function importChat(
 
   emitProgress({ phase: 'Done', current: messages.length, total: messages.length, pct: 100 })
 
-  // Notify renderer to refresh chat list via two events:
-  // wa:chat-updated  – same channel real-time sync uses (sidebar hook)
-  // import:done      – dedicated channel so sidebar always catches it
   const win = BrowserWindow.getAllWindows()[0]
   win?.webContents.send('wa:chat-updated', {})
-  win?.webContents.send('import:done', { chatName, messagesImported: msgCount, mediaImported: mediaCopied })
+  win?.webContents.send('import:done', { chatName, waId: actualWaId, messagesImported: msgCount, mediaImported: mediaCopied })
 
-  return { ok: true, chatName, messagesImported: msgCount, mediaImported: mediaCopied }
+  return { ok: true, chatName, waId: actualWaId, messagesImported: msgCount, mediaImported: mediaCopied }
 }
