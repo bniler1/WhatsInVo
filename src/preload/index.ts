@@ -30,10 +30,12 @@ contextBridge.exposeInMainWorld('api', {
     onSessionStatus:(cb: (d: unknown) => void) => on('wa:session-status', cb),
   },
   chats: {
-    list:      ()                => ipcRenderer.invoke('chats:list'),
-    get:       (waId: string)    => ipcRenderer.invoke('chats:get', waId),
-    markRead:  (waId: string)    => ipcRenderer.invoke('chats:mark-read', waId),
-    onUpdated: (cb: (d: unknown) => void) => on('wa:chat-updated', cb),
+    list:           ()             => ipcRenderer.invoke('chats:list'),
+    get:            (waId: string) => ipcRenderer.invoke('chats:get', waId),
+    markRead:       (waId: string) => ipcRenderer.invoke('chats:mark-read', waId),
+    openFile:       (path: string) => ipcRenderer.invoke('chats:open-file', path),
+    integrityCheck: (waId: string) => ipcRenderer.invoke('chats:integrity-check', waId),
+    onUpdated:      (cb: (d: unknown) => void) => on('wa:chat-updated', cb),
   },
   messages: {
     list:       (chatWaId: string, limit?: number, before?: number) => ipcRenderer.invoke('messages:list', chatWaId, limit, before),

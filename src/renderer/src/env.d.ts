@@ -30,6 +30,13 @@ interface Window {
       list(): Promise<DbChat[]>
       get(waId: string): Promise<DbChat | undefined>
       markRead(waId: string): Promise<{ ok: boolean }>
+      openFile(path: string): Promise<{ ok: boolean; error?: string }>
+      integrityCheck(waId: string): Promise<{
+        ok: boolean; error?: string
+        dbMessages: number; txtMessages: number | null
+        mediaInDb: number; mediaOnDisk: number; mediaMissing: number; mediaOmitted: number
+        integrity: 'complete' | 'incomplete' | 'unknown'
+      }>
       onUpdated(cb: (d: unknown) => void): () => void
     }
     messages: {
