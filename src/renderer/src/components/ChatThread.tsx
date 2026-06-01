@@ -28,6 +28,10 @@ export function ChatThread() {
     }
   }, [messages.length])
 
+  const handleExport = useCallback(async () => {
+    await window.api.chats.exportChat(decodedId)
+  }, [decodedId])
+
   const handleClear = useCallback(async () => {
     if (!confirmClear) { setConfirmClear(true); return }
     setConfirmClear(false)
@@ -59,6 +63,13 @@ export function ChatThread() {
           <p className="text-sm font-medium text-white leading-tight truncate">{displayName}</p>
           {isGroup && <p className="text-xs text-gray-500">Group</p>}
         </div>
+        <button
+          onClick={handleExport}
+          title="Save chat log to hard drive"
+          className="shrink-0 text-gray-500 hover:text-emerald-400 transition-colors p-1 rounded"
+        >
+          💾
+        </button>
         {confirmClear ? (
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-xs text-red-400">Clear all messages?</span>

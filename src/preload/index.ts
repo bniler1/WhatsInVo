@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('api', {
     get:           (waId: string)    => ipcRenderer.invoke('chats:get', waId),
     markRead:      (waId: string)    => ipcRenderer.invoke('chats:mark-read', waId),
     clearMessages: (waId: string)    => ipcRenderer.invoke('chats:clear-messages', waId),
+    exportChat:    (waId: string)    => ipcRenderer.invoke('chats:export', waId),
     onUpdated:     (cb: (d: unknown) => void) => on('wa:chat-updated', cb),
   },
   messages: {

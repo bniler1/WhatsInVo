@@ -31,6 +31,7 @@ interface Window {
       get(waId: string): Promise<DbChat | undefined>
       markRead(waId: string): Promise<{ ok: boolean }>
       clearMessages(waId: string): Promise<{ ok: boolean; error?: string }>
+      exportChat(waId: string): Promise<{ ok: boolean; filePath?: string; cancelled?: boolean; error?: string }>
       onUpdated(cb: (d: unknown) => void): () => void
     }
     messages: {
