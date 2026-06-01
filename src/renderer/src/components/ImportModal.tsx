@@ -18,7 +18,7 @@ interface Progress {
 export function ImportModal({ onClose, onImportDone }: Props) {
   const [step, setStep]         = useState<Step>('pick')
   const [filePath, setFilePath] = useState<string | null>(null)
-  const [mode, setMode]         = useState<Mode>('append')
+  const [mode, setMode]         = useState<Mode>('overwrite')
   const [ownersName, setOwnersName] = useState('')
   const [progress, setProgress] = useState<Progress>({ phase: '', current: 0, total: 0, pct: 0 })
   const [result, setResult]     = useState<{ chatName: string; messages: number; media: number; waId: string } | null>(null)
