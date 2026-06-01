@@ -31,7 +31,7 @@ function ChatRow({ chat, active }: { chat: DbChat; active: boolean }) {
         <div className="flex justify-between items-baseline">
           <span className="text-sm font-medium text-white truncate">
             {chat.name || chat.wa_id}
-            {chat.is_imported === 1 && <span className="ml-1 text-emerald-400">📥</span>}
+            {chat.wa_id.startsWith('import:') && <span className="ml-1 text-emerald-400">📥</span>}
           </span>
           <span className="text-xs text-gray-500 shrink-0 ml-2">{fmtTime(chat.last_message_at)}</span>
         </div>

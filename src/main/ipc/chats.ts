@@ -75,7 +75,7 @@ export function registerChatHandlers(): void {
       SELECT c.*, co.avatar_path
       FROM chats c
       LEFT JOIN contacts co ON c.contact_id = co.id
-      WHERE c.cleared_at IS NULL OR c.last_message_at IS NOT NULL
+      WHERE c.cleared_at IS NULL AND c.last_message_at IS NOT NULL
       ORDER BY c.last_message_at DESC
     `)
   })

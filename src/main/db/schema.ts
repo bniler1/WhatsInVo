@@ -75,6 +75,8 @@ export function createTables(db: Database): void {
   // Migrations: safe no-op if columns already exist
   try { db.run(`ALTER TABLE chats ADD COLUMN is_imported INTEGER NOT NULL DEFAULT 0`) } catch {}
   try { db.run(`ALTER TABLE chats ADD COLUMN cleared_at  TEXT DEFAULT NULL`) } catch {}
+  // Fix: v1.07 name-match incorrectly set is_imported=1 on live chats — reset them
+  db.run(`UPDATE chats SET is_imported = 0 WHERE is_imported = 1 AND wa_id NOT LIKE 'import:%'`)
 
   db.run(`CREATE INDEX IF NOT EXISTS idx_messages_chat_id   ON messages(chat_id)`)
   db.run(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)`)
