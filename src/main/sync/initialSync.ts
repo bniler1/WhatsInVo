@@ -7,6 +7,17 @@ import type { WAMessage, WAChat } from '../whatsapp/client'
 let _abortRequested = false
 export function requestAbort() { _abortRequested = true }
 
+// Sleep that wakes up early (every 100ms) to check the abort flag
+async function sleep(ms: number): Promise<void> {
+  const step = 100
+  let elapsed = 0
+  while (elapsed < ms) {
+    if (_abortRequested) return
+    await new Promise(r => setTimeout(r, Math.min(step, ms - elapsed)))
+    elapsed += step
+  }
+}
+
 function emitProgress(win: BrowserWindow | undefined, phase: string, pct: number, chatName = '') {
   win?.webContents.send('sync:progress', { status: 'syncing', phase, pct: Math.min(Math.round(pct), 99), chatName })
 }
@@ -129,14 +140,14 @@ export async function runInitialSync(): Promise<void> {
           if (is429 && attempt < 3) {
             const wait = 2000 * Math.pow(2, attempt)
             console.warn(`[InitialSync] 429 for ${chat.id}, retrying in ${wait}ms`)
-            await new Promise(r => setTimeout(r, wait))
+            await sleep(wait)
           } else {
             console.warn(`[InitialSync] Could not fetch messages for ${chat.id}:`, err)
             break
           }
         }
       }
-      if (!fetchSuccess) { await new Promise(r => setTimeout(r, 500)); continue }
+      if (!fetchSuccess) { await sleep(500); continue }
 
       for (const msg of messages) {
         const msgRowId = insertMessage(chatRowId, msg)
@@ -146,7 +157,7 @@ export async function runInitialSync(): Promise<void> {
       }
 
       persist()
-      await new Promise(r => setTimeout(r, 200))   // inter-chat pause to reduce rate
+      await sleep(200)   // inter-chat pause to reduce rate
     }
 
     // Download media files — with pacing to avoid rate limits
@@ -157,7 +168,7 @@ export async function runInitialSync(): Promise<void> {
       if (i % 5 === 0) {
         emitProgress(win, 'Downloading media files', 75 + Math.round((i / Math.max(total, 1)) * 24))
       }
-      await new Promise(r => setTimeout(r, 300))   // 300ms between downloads
+      await sleep(300)   // 300ms between downloads
       try {
         const filePath = await downloadAndSaveMedia(msg, chatWaId)
         if (filePath) {

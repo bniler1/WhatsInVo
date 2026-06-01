@@ -57,7 +57,7 @@ export function SyncModal() {
               disabled={aborting}
               className="px-5 py-2 text-sm text-red-400 border border-red-800 rounded-lg hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {aborting ? 'Cancelling…' : 'Abort Download'}
+              {aborting ? 'Stopping after current item…' : 'Abort Download'}
             </button>
           </>
         )}
