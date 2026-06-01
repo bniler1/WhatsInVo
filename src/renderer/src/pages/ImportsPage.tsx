@@ -31,6 +31,20 @@ export function ImportsPage() {
   const [targetChat, setTargetChat] = useState<DbChat | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
+  const startEdit = (chat: DbChat) => {
+    setEditingId(chat.wa_id)
+    setEditValue(chat.name || '')
+  }
+
+  const saveEdit = async (chat: DbChat) => {
+    if (!editValue.trim()) return
+    await window.api.chats.rename(chat.wa_id, editValue.trim())
+    window.dispatchEvent(new CustomEvent('whatsinvo:chats-changed'))
+    setEditingId(null)
+  }
 
   const handleDelete = async (chat: DbChat) => {
     setDeleting(true)
@@ -106,10 +120,32 @@ export function ImportsPage() {
                     <div key={chat.wa_id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#2a3942] transition-colors border-b border-[#2a3942]/50 last:border-0">
                       <Avatar chat={chat} />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-white truncate">{chat.name || chat.wa_id}</span>
-                          <span className="shrink-0 text-xs text-emerald-400">📥</span>
-                        </div>
+                        {editingId === chat.wa_id ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              autoFocus
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') saveEdit(chat)
+                                if (e.key === 'Escape') setEditingId(null)
+                              }}
+                              className="flex-1 bg-[#2a3942] text-sm text-white px-2 py-1 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                            <button onClick={() => saveEdit(chat)} className="text-xs text-emerald-400 hover:text-emerald-300">Save</button>
+                            <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:text-gray-300">Cancel</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-white truncate">{chat.name || chat.wa_id}</span>
+                            <span className="shrink-0 text-xs text-emerald-400">📥</span>
+                            <button
+                              onClick={() => startEdit(chat)}
+                              className="shrink-0 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                              title="Rename"
+                            >✏️</button>
+                          </div>
+                        )}
                         <p className="text-xs text-gray-500 mt-0.5">
                           {chat.last_message_preview || 'No preview'} · {fmtDate(chat.last_message_at)}
                         </p>

@@ -38,6 +38,7 @@ interface Window {
         mediaInDb: number; mediaOnDisk: number; mediaMissing: number; mediaOmitted: number
         integrity: 'complete' | 'incomplete' | 'unknown'
       }>
+      rename(waId: string, name: string): Promise<{ ok: boolean; error?: string }>
       delete(waId: string): Promise<{ ok: boolean; error?: string }>
       onUpdated(cb: (d: unknown) => void): () => void
     }

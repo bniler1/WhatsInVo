@@ -77,6 +77,16 @@ export function registerChatHandlers(): void {
     return { ok: true, dbMessages, txtMessages, mediaInDb, mediaOnDisk, mediaMissing, mediaOmitted, integrity }
   })
 
+  ipcMain.handle('chats:rename', (_, chatWaId: string, newName: string) => {
+    const trimmed = newName.trim()
+    if (!trimmed) return { ok: false, error: 'Name cannot be empty' }
+    const chat = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [chatWaId])
+    if (!chat) return { ok: false, error: 'Chat not found' }
+    db.run(`UPDATE chats SET name = ? WHERE id = ?`, [trimmed, chat.id])
+    persist()
+    return { ok: true }
+  })
+
   ipcMain.handle('chats:delete', (_, chatWaId: string) => {
     const chat = queryOne<{ id: number; name: string }>(`SELECT id, name FROM chats WHERE wa_id = ?`, [chatWaId])
     if (!chat) return { ok: false, error: 'Chat not found' }
