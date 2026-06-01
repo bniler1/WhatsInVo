@@ -42,7 +42,8 @@ interface Window {
     messages: {
       list(chatWaId: string, limit?: number, before?: number): Promise<DbMessage[]>
       sendText(chatWaId: string, text: string): Promise<{ ok: boolean; error?: string }>
-      sendFile(chatWaId: string): Promise<{ ok: boolean; error?: string; cancelled?: boolean }>
+      pickFileInfo(): Promise<{ path: string; name: string; ext: string; type: 'image'|'video'|'audio'|'document' } | null>
+      sendFile(chatWaId: string, filePath?: string, caption?: string): Promise<{ ok: boolean; error?: string; cancelled?: boolean }>
       onAppended(cb: (d: unknown) => void): () => void
       onUpdated(cb: (d: unknown) => void): () => void
     }

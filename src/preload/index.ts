@@ -38,9 +38,10 @@ contextBridge.exposeInMainWorld('api', {
     onUpdated:      (cb: (d: unknown) => void) => on('wa:chat-updated', cb),
   },
   messages: {
-    list:       (chatWaId: string, limit?: number, before?: number) => ipcRenderer.invoke('messages:list', chatWaId, limit, before),
-    sendText:   (chatWaId: string, text: string)                    => ipcRenderer.invoke('messages:send-text', chatWaId, text),
-    sendFile:   (chatWaId: string)                                  => ipcRenderer.invoke('messages:send-file', chatWaId),
+    list:         (chatWaId: string, limit?: number, before?: number)            => ipcRenderer.invoke('messages:list', chatWaId, limit, before),
+    sendText:     (chatWaId: string, text: string)                              => ipcRenderer.invoke('messages:send-text', chatWaId, text),
+    pickFileInfo: ()                                                             => ipcRenderer.invoke('messages:pick-file-info'),
+    sendFile:     (chatWaId: string, filePath?: string, caption?: string)       => ipcRenderer.invoke('messages:send-file', chatWaId, filePath, caption),
     onAppended: (cb: (d: unknown) => void) => on('wa:message-appended', cb),
     onUpdated:  (cb: (d: unknown) => void) => on('wa:message-updated',  cb),
   },

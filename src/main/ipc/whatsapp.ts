@@ -126,26 +126,32 @@ function getMime(ext: string): string {
   return map[ext] || 'application/octet-stream'
 }
 
-export async function handleSendFile(chatId: string): Promise<{ ok: boolean; error?: string; cancelled?: boolean }> {
+export async function handleSendFile(chatId: string, providedPath?: string, caption = ''): Promise<{ ok: boolean; error?: string; cancelled?: boolean }> {
   // Imported chats can't send live messages — they have no real WhatsApp ID
   if (chatId.startsWith('import:')) {
     return { ok: false, error: 'This is an imported chat record. Connect to WhatsApp and use the live chat to send messages.' }
   }
 
-  const result = await dialog.showOpenDialog({
-    title: 'Select file to send',
-    filters: [
-      { name: 'Images',    extensions: ['jpg','jpeg','png','gif','webp'] },
-      { name: 'Video',     extensions: ['mp4','mov','avi','webm','3gp'] },
-      { name: 'Audio',     extensions: ['mp3','ogg','opus','wav','aac','m4a'] },
-      { name: 'Documents', extensions: ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','zip'] },
-      { name: 'All Files', extensions: ['*'] }
-    ],
-    properties: ['openFile']
-  })
-  if (result.canceled) return { ok: false, cancelled: true }
+  let filePath: string
+  if (providedPath) {
+    filePath = providedPath
+  } else {
+    // Legacy: open dialog and send immediately (kept for fallback)
+    const result = await dialog.showOpenDialog({
+      title: 'Select file to send',
+      filters: [
+        { name: 'Images',    extensions: ['jpg','jpeg','png','gif','webp'] },
+        { name: 'Video',     extensions: ['mp4','mov','avi','webm','3gp'] },
+        { name: 'Audio',     extensions: ['mp3','ogg','opus','wav','aac','m4a'] },
+        { name: 'Documents', extensions: ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','zip'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    })
+    if (result.canceled) return { ok: false, cancelled: true }
+    filePath = result.filePaths[0]
+  }
 
-  const filePath = result.filePaths[0]
   const name = basename(filePath)
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
 
@@ -164,10 +170,10 @@ export async function handleSendFile(chatId: string): Promise<{ ok: boolean; err
     let msgType: string
 
     if (IMAGE_EXTS.test(ext)) {
-      const r = await client.sendImage(chatId, base64, mime, name)
+      const r = await client.sendImage(chatId, base64, mime, name, caption)
       messageId = r.messageId; msgType = 'image'
     } else if (VIDEO_EXTS.test(ext)) {
-      const r = await client.sendVideo(chatId, base64, mime, name)
+      const r = await client.sendVideo(chatId, base64, mime, name, caption)
       messageId = r.messageId; msgType = 'video'
     } else if (AUDIO_EXTS.test(ext)) {
       const r = await client.sendAudio(chatId, base64, mime, name)

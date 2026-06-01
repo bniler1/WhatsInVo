@@ -49,7 +49,43 @@ export function registerMessageHandlers(): void {
     }
   })
 
-  ipcMain.handle('messages:send-file', async (_, chatWaId: string) => {
+  // Pick a file and return its metadata — does NOT send yet
+  ipcMain.handle('messages:pick-file-info', async () => {
+    const { dialog } = await import('electron')
+    const result = await dialog.showOpenDialog({
+      title: 'Select file to send',
+      filters: [
+        { name: 'Images',    extensions: ['jpg','jpeg','png','gif','webp'] },
+        { name: 'Video',     extensions: ['mp4','mov','avi','webm','3gp'] },
+        { name: 'Audio',     extensions: ['mp3','ogg','opus','wav','aac','m4a'] },
+        { name: 'Documents', extensions: ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','zip'] },
+        { name: 'All Files', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    })
+    if (result.canceled) return null
+    const { existsSync } = await import('fs')
+    const { basename, extname } = await import('path')
+    const filePath = result.filePaths[0]
+    if (!existsSync(filePath)) return null
+    const name = basename(filePath)
+    const ext  = extname(name).slice(1).toLowerCase()
+    const IMAGE_EXTS = /^(jpg|jpeg|png|gif|webp)$/
+    const VIDEO_EXTS = /^(mp4|mov|avi|webm|3gp)$/
+    const AUDIO_EXTS = /^(mp3|ogg|opus|wav|aac|m4a)$/
+    const type = IMAGE_EXTS.test(ext) ? 'image'
+               : VIDEO_EXTS.test(ext) ? 'video'
+               : AUDIO_EXTS.test(ext) ? 'audio'
+               : 'document'
+    return { path: filePath, name, ext, type }
+  })
+
+  // Send a previously-picked file (path + optional caption)
+  ipcMain.handle('messages:send-file', async (_, chatWaId: string, filePath?: string, caption?: string) => {
+    if (filePath) {
+      return handleSendFile(chatWaId, filePath, caption ?? '')
+    }
+    // Legacy: no path provided, fall back to pick-and-send in one step
     return handleSendFile(chatWaId)
   })
 }
