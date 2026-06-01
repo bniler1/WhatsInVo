@@ -111,14 +111,27 @@ export async function runInitialSync(): Promise<void> {
 
       const chatRowId = upsertChat(chat)
 
-      // Fetch message history directly from WhatsApp for this chat
+      // Fetch message history — retry up to 3× on 429 with backoff
       let messages: WAMessage[] = []
-      try {
-        messages = await client.fetchChatMessages(chat.id, 100)
-      } catch (err) {
-        console.warn(`[InitialSync] Could not fetch messages for ${chat.id}:`, err)
-        continue
+      let fetchSuccess = false
+      for (let attempt = 0; attempt <= 3; attempt++) {
+        try {
+          messages = await client.fetchChatMessages(chat.id, 200)
+          fetchSuccess = true
+          break
+        } catch (err) {
+          const is429 = String(err).includes('429')
+          if (is429 && attempt < 3) {
+            const wait = 2000 * Math.pow(2, attempt)
+            console.warn(`[InitialSync] 429 for ${chat.id}, retrying in ${wait}ms`)
+            await new Promise(r => setTimeout(r, wait))
+          } else {
+            console.warn(`[InitialSync] Could not fetch messages for ${chat.id}:`, err)
+            break
+          }
+        }
       }
+      if (!fetchSuccess) { await new Promise(r => setTimeout(r, 500)); continue }
 
       for (const msg of messages) {
         const msgRowId = insertMessage(chatRowId, msg)
@@ -128,15 +141,17 @@ export async function runInitialSync(): Promise<void> {
       }
 
       persist()
+      await new Promise(r => setTimeout(r, 200))   // inter-chat pause to reduce rate
     }
 
-    // Download media files (best-effort)
+    // Download media files — with pacing to avoid rate limits
     const total = mediaQueue.length
     for (let i = 0; i < total; i++) {
       const { msg, chatWaId, msgRowId } = mediaQueue[i]
       if (i % 10 === 0) {
         emitProgress(win, 'Downloading media', 75 + Math.round((i / Math.max(total, 1)) * 20))
       }
+      await new Promise(r => setTimeout(r, 300))   // 300ms between downloads
       try {
         const filePath = await downloadAndSaveMedia(msg, chatWaId)
         if (filePath) {
@@ -148,7 +163,7 @@ export async function runInitialSync(): Promise<void> {
           db.run(`UPDATE messages SET media_id = ? WHERE id = ?`, [mediaId, msgRowId])
         }
       } catch {
-        // skip individual media failures silently
+        // individual failures already logged inside downloadAndSaveMedia
       }
     }
 

@@ -12,6 +12,7 @@ export function ChatThread() {
   const { messages, loading, loadMore } = useMessages(decodedId)
   const [chat, setChat] = useState<DbChat | null>(null)
   const [showIntegrity, setShowIntegrity] = useState(false)
+  const [retryStatus, setRetryStatus]     = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottom = useRef(true)
@@ -50,6 +51,25 @@ export function ChatThread() {
           <p className="text-sm font-semibold text-white leading-tight truncate">{displayName}</p>
           {isGroup && <p className="text-xs text-gray-500">Group</p>}
         </div>
+        {retryStatus && (
+          <span className="text-xs text-emerald-400 shrink-0">{retryStatus}</span>
+        )}
+        <button
+          onClick={async () => {
+            setRetryStatus('Downloading…')
+            const r = await window.api.chats.retryMedia(decodedId)
+            if (r.ok) {
+              setRetryStatus(r.total === 0 ? 'No missing media' : `Downloaded ${r.downloaded}/${r.total}`)
+            } else {
+              setRetryStatus('Retry failed')
+            }
+            setTimeout(() => setRetryStatus(null), 4000)
+          }}
+          title="Retry downloading missing media"
+          className="shrink-0 text-gray-500 hover:text-emerald-400 transition-colors p-1.5 rounded-lg hover:bg-[#2a3942]"
+        >
+          ⬇
+        </button>
         <button
           onClick={() => setShowIntegrity(true)}
           title="Check chat integrity"

@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
     markRead:       (waId: string) => ipcRenderer.invoke('chats:mark-read', waId),
     openFile:       (path: string) => ipcRenderer.invoke('chats:open-file', path),
     integrityCheck: (waId: string) => ipcRenderer.invoke('chats:integrity-check', waId),
+    retryMedia:     (waId: string) => ipcRenderer.invoke('chats:retry-media', waId),
     onUpdated:      (cb: (d: unknown) => void) => on('wa:chat-updated', cb),
   },
   messages: {

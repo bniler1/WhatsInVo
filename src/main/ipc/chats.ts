@@ -1,9 +1,11 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, BrowserWindow } from 'electron'
 import { existsSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { join, basename } from 'path'
 import { app } from 'electron'
-import { queryAll, queryOne, db, persist } from '../db'
+import { queryAll, queryOne, run, db, persist } from '../db'
 import type { DbChat } from '../../shared/types'
+import { downloadAndSaveMedia, guessMimeFromPath } from '../sync/mediaDownloader'
+import type { WAMessage } from '../whatsapp/client'
 
 const WA_LINE_RE = /^(?:\[)?(\d{1,4}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i
 
@@ -73,5 +75,51 @@ export function registerChatHandlers(): void {
       : 'unknown'
 
     return { ok: true, dbMessages, txtMessages, mediaInDb, mediaOnDisk, mediaMissing, mediaOmitted, integrity }
+  })
+
+  ipcMain.handle('chats:retry-media', async (_, chatWaId: string) => {
+    const chat = queryOne<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [chatWaId])
+    if (!chat) return { ok: false, error: 'Chat not found' }
+
+    const pending = queryAll<{ id: number; wa_message_id: string; timestamp: number; type: string; filename: string | null }>(
+      `SELECT id, wa_message_id, timestamp, type, filename FROM messages
+       WHERE chat_id = ? AND has_media = 1 AND media_id IS NULL`,
+      [chat.id]
+    )
+
+    if (pending.length === 0) return { ok: true, total: 0, downloaded: 0, failed: 0 }
+
+    let downloaded = 0, failed = 0
+
+    for (const row of pending) {
+      await new Promise(r => setTimeout(r, 300))
+      const stub = {
+        id: row.wa_message_id,
+        timestamp: row.timestamp,
+        hasMedia: true,
+        type: row.type as WAMessage['type'],
+        filename: row.filename || '',
+        body: '', fromMe: false, from: chatWaId, to: '',
+        mimetype: '', caption: '', author: '',
+      } as WAMessage
+
+      const filePath = await downloadAndSaveMedia(stub, chatWaId)
+      if (filePath) {
+        const mime = guessMimeFromPath(filePath)
+        const mediaId = run(
+          `INSERT INTO media (message_id, file_path, mime_type, original_name)
+           VALUES (?, ?, ?, ?)`,
+          [row.id, filePath, mime, basename(filePath)]
+        )
+        db.run(`UPDATE messages SET media_id = ? WHERE id = ?`, [mediaId, row.id])
+        persist()
+        downloaded++
+      } else {
+        failed++
+      }
+    }
+
+    BrowserWindow.getAllWindows()[0]?.webContents.send('wa:chat-updated', {})
+    return { ok: true, total: pending.length, downloaded, failed }
   })
 }

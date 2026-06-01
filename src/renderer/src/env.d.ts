@@ -31,6 +31,7 @@ interface Window {
       get(waId: string): Promise<DbChat | undefined>
       markRead(waId: string): Promise<{ ok: boolean }>
       openFile(path: string): Promise<{ ok: boolean; error?: string }>
+      retryMedia(waId: string): Promise<{ ok: boolean; total: number; downloaded: number; failed: number; error?: string }>
       integrityCheck(waId: string): Promise<{
         ok: boolean; error?: string
         dbMessages: number; txtMessages: number | null
