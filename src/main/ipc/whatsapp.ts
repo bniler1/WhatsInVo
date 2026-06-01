@@ -2,6 +2,7 @@ import { ipcMain, dialog, shell } from 'electron'
 import { readFileSync, existsSync } from 'fs'
 import { basename } from 'path'
 import { initClient, getClient } from '../whatsapp/client'
+import { queryAll, run, persist } from '../db'
 import { connectEvents, disconnect, isConnected } from '../whatsapp/events'
 import { loadSettings, saveSettings } from '../settings'
 import { startOpenWA, stopOpenWA, getServerStatus, getServerUrl, getApiKey } from '../whatsapp/process'
@@ -126,13 +127,18 @@ function getMime(ext: string): string {
 }
 
 export async function handleSendFile(chatId: string): Promise<{ ok: boolean; error?: string; cancelled?: boolean }> {
+  // Imported chats can't send live messages — they have no real WhatsApp ID
+  if (chatId.startsWith('import:')) {
+    return { ok: false, error: 'This is an imported chat record. Connect to WhatsApp and use the live chat to send messages.' }
+  }
+
   const result = await dialog.showOpenDialog({
     title: 'Select file to send',
     filters: [
-      { name: 'Images', extensions: ['jpg','jpeg','png','gif','webp'] },
-      { name: 'Video', extensions: ['mp4','mov','avi','webm'] },
-      { name: 'Audio', extensions: ['mp3','ogg','opus','wav','aac','m4a'] },
-      { name: 'Documents', extensions: ['pdf','doc','docx','xls','xlsx','txt','zip'] },
+      { name: 'Images',    extensions: ['jpg','jpeg','png','gif','webp'] },
+      { name: 'Video',     extensions: ['mp4','mov','avi','webm','3gp'] },
+      { name: 'Audio',     extensions: ['mp3','ogg','opus','wav','aac','m4a'] },
+      { name: 'Documents', extensions: ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','zip'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     properties: ['openFile']
@@ -150,16 +156,40 @@ export async function handleSendFile(chatId: string): Promise<{ ok: boolean; err
     const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
 
     const IMAGE_EXTS = /^(jpg|jpeg|png|gif|webp)$/
+    const VIDEO_EXTS = /^(mp4|mov|avi|webm|3gp)$/
     const AUDIO_EXTS = /^(mp3|ogg|opus|wav|aac|m4a)$/
 
     const client = getClient()
+    let messageId: string | undefined
+    let msgType: string
+
     if (IMAGE_EXTS.test(ext)) {
-      await client.sendImage(chatId, dataUrl)
+      const r = await client.sendImage(chatId, dataUrl)
+      messageId = r.messageId; msgType = 'image'
+    } else if (VIDEO_EXTS.test(ext)) {
+      const r = await client.sendVideo(chatId, dataUrl)
+      messageId = r.messageId; msgType = 'video'
     } else if (AUDIO_EXTS.test(ext)) {
-      await client.sendAudio(chatId, dataUrl)
+      const r = await client.sendAudio(chatId, dataUrl)
+      messageId = r.messageId; msgType = 'audio'
     } else {
-      await client.sendDocument(chatId, dataUrl, name)
+      const r = await client.sendDocument(chatId, dataUrl, name)
+      messageId = r.messageId; msgType = 'document'
     }
+
+    // Optimistically insert the sent file into the local DB so it appears in the chat log
+    const chatRow = queryAll<{ id: number }>(`SELECT id FROM chats WHERE wa_id = ?`, [chatId])
+    if (chatRow[0]) {
+      const now = Math.floor(Date.now() / 1000)
+      run(
+        `INSERT OR IGNORE INTO messages
+           (chat_id, wa_message_id, timestamp, sender_wa_id, sender_name, body, type, direction, has_media, filename)
+         VALUES (?, ?, ?, '', 'Me', ?, ?, 'outgoing', 1, ?)`,
+        [chatRow[0].id, messageId || `sent_file_${Date.now()}`, now, name, msgType, name]
+      )
+      persist()
+    }
+
     return { ok: true }
   } catch (err) {
     return { ok: false, error: String(err) }

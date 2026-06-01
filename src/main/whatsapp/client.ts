@@ -189,6 +189,14 @@ export class OpenWAClient {
     })
   }
 
+  async sendVideo(chatId: string, url: string, caption = ''): Promise<{ messageId: string }> {
+    const uuid = await this.resolveUuid()
+    return this.req(`/sessions/${uuid}/messages/send-video`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId, url, caption })
+    })
+  }
+
   async sendAudio(chatId: string, url: string): Promise<{ messageId: string }> {
     const uuid = await this.resolveUuid()
     return this.req(`/sessions/${uuid}/messages/send-audio`, {
