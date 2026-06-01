@@ -200,9 +200,19 @@ export async function runInitialSync(): Promise<void> {
     win?.webContents.send('wa:chat-updated', {})
     console.log(`[InitialSync] Done — ${chats.length} chats synced`)
   } catch (err) {
-    console.error('[InitialSync] Fatal error:', err)
-    db.run(`UPDATE sync_state SET status = 'error' WHERE id = 1`)
-    persist()
-    win?.webContents.send('sync:progress', { status: 'error', phase: String(err), pct: 0, chatName: '' })
+    // "Request interrupted" errors are caused by in-flight requests being cancelled
+    // when the user aborts — treat them as a clean abort, not an error
+    const isInterrupted = _abortRequested || String(err).toLowerCase().includes('interrupted')
+    if (isInterrupted) {
+      db.run(`UPDATE sync_state SET status = 'idle' WHERE id = 1`)
+      persist()
+      win?.webContents.send('sync:progress', { status: 'aborted', phase: 'Download cancelled', pct: 0, chatName: '' })
+      win?.webContents.send('wa:chat-updated', {})
+    } else {
+      console.error('[InitialSync] Fatal error:', err)
+      db.run(`UPDATE sync_state SET status = 'error' WHERE id = 1`)
+      persist()
+      win?.webContents.send('sync:progress', { status: 'error', phase: String(err), pct: 0, chatName: '' })
+    }
   }
 }

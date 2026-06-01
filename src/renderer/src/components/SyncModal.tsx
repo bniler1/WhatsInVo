@@ -1,17 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSyncState } from '../hooks/useSyncState'
 
 export function SyncModal() {
   const sync = useSyncState()
-  const [aborting, setAborting] = useState(false)
+  const [aborting, setAborting]   = useState(false)
+  const [dismissed, setDismissed] = useState(false)
 
-  const visible = sync.status === 'syncing' || sync.status === 'aborted'
+  // Reset dismissed when a new sync starts
+  useEffect(() => {
+    if (sync.status === 'syncing') setDismissed(false)
+  }, [sync.status])
+
+  // Auto-dismiss the cancelled confirmation after 4 seconds
+  useEffect(() => {
+    if (sync.status === 'aborted') {
+      const t = setTimeout(() => setDismissed(true), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [sync.status])
+
+  const visible = (sync.status === 'syncing' || sync.status === 'aborted') && !dismissed
   if (!visible) return null
 
   const handleAbort = async () => {
     setAborting(true)
     await window.api.sync.abort()
-    // status will update via onProgress event when sync actually stops
   }
 
   const isAborted = sync.status === 'aborted'
@@ -23,8 +36,14 @@ export function SyncModal() {
         {isAborted ? (
           <>
             <div className="text-4xl mb-3">⛔</div>
-            <h2 className="text-white text-lg font-bold mb-1">Download cancelled</h2>
-            <p className="text-gray-400 text-sm">Partial data has been saved. You can re-sync anytime.</p>
+            <h2 className="text-white text-lg font-bold mb-2">Download cancelled</h2>
+            <p className="text-gray-400 text-sm mb-5">Partial data has been saved. You can re-sync anytime.</p>
+            <button
+              onClick={() => setDismissed(true)}
+              className="px-6 py-2 text-sm text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+            >
+              OK
+            </button>
           </>
         ) : (
           <>
