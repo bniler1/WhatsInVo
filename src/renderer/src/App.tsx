@@ -152,7 +152,7 @@ export default function App() {
         <Route path="/" element={<Home onImport={() => navigate('/imports')} />}>
           <Route index element={<EmptyThread />} />
           <Route path=":chatId" element={<ChatThread />} />
-          <Route path="imports" element={<ImportsPage />} />
+          <Route path="/imports" element={<ImportsPage />} />
         </Route>
         <Route path="/settings" element={<Settings />} />
       </Routes>

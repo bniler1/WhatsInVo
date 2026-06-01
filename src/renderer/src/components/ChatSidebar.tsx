@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useMatch } from 'react-router-dom'
 import { useChats } from '../hooks/useChats'
 import type { DbChat } from '../../../shared/types'
 
@@ -51,6 +51,8 @@ interface ChatSidebarProps {
 
 export function ChatSidebar({ onImport }: ChatSidebarProps) {
   const { chatId } = useParams()
+  const navigate = useNavigate()
+  const onImportsPage = !!useMatch('/imports')
   const { chats, loading } = useChats()
   const [search, setSearch] = useState('')
 
@@ -68,16 +70,16 @@ export function ChatSidebar({ onImport }: ChatSidebarProps) {
           placeholder="Search chats…"
           className="flex-1 bg-[#2a3942] text-sm text-gray-300 placeholder-gray-500 px-3 py-1.5 rounded-lg focus:outline-none"
         />
-        <button
-          onClick={onImport}
-          title="Import WhatsApp chat export"
-          className="shrink-0 p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-[#2a3942] rounded-lg transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-        </button>
       </div>
+      {/* Import Manager button — always visible */}
+      <button
+        onClick={() => navigate('/imports')}
+        className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors border-b border-[#2a3942]
+          ${onImportsPage ? 'bg-emerald-900/40 text-emerald-400' : 'text-gray-400 hover:text-emerald-400 hover:bg-[#2a3942]'}`}
+      >
+        <span className="text-base">📥</span>
+        Import Manager
+      </button>
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center text-gray-500 text-sm">Loading chats…</div>
