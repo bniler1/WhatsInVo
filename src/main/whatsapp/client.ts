@@ -173,35 +173,35 @@ export class OpenWAClient {
     })
   }
 
-  async sendImage(chatId: string, url: string, caption = ''): Promise<{ messageId: string }> {
+  async sendImage(chatId: string, base64: string, mimetype: string, filename?: string, caption = ''): Promise<{ messageId: string }> {
     const uuid = await this.resolveUuid()
     return this.req(`/sessions/${uuid}/messages/send-image`, {
       method: 'POST',
-      body: JSON.stringify({ chatId, url, caption })
+      body: JSON.stringify({ chatId, base64, mimetype, filename, caption })
     })
   }
 
-  async sendDocument(chatId: string, url: string, filename: string): Promise<{ messageId: string }> {
-    const uuid = await this.resolveUuid()
-    return this.req(`/sessions/${uuid}/messages/send-document`, {
-      method: 'POST',
-      body: JSON.stringify({ chatId, url, filename })
-    })
-  }
-
-  async sendVideo(chatId: string, url: string, caption = ''): Promise<{ messageId: string }> {
+  async sendVideo(chatId: string, base64: string, mimetype: string, filename?: string, caption = ''): Promise<{ messageId: string }> {
     const uuid = await this.resolveUuid()
     return this.req(`/sessions/${uuid}/messages/send-video`, {
       method: 'POST',
-      body: JSON.stringify({ chatId, url, caption })
+      body: JSON.stringify({ chatId, base64, mimetype, filename, caption })
     })
   }
 
-  async sendAudio(chatId: string, url: string): Promise<{ messageId: string }> {
+  async sendAudio(chatId: string, base64: string, mimetype: string, filename?: string): Promise<{ messageId: string }> {
     const uuid = await this.resolveUuid()
     return this.req(`/sessions/${uuid}/messages/send-audio`, {
       method: 'POST',
-      body: JSON.stringify({ chatId, url })
+      body: JSON.stringify({ chatId, base64, mimetype, filename })
+    })
+  }
+
+  async sendDocument(chatId: string, base64: string, mimetype: string, filename: string): Promise<{ messageId: string }> {
+    const uuid = await this.resolveUuid()
+    return this.req(`/sessions/${uuid}/messages/send-document`, {
+      method: 'POST',
+      body: JSON.stringify({ chatId, base64, mimetype, filename })
     })
   }
 }

@@ -153,7 +153,7 @@ export async function handleSendFile(chatId: string): Promise<{ ok: boolean; err
     if (!existsSync(filePath)) return { ok: false, error: 'File not found' }
     const buf = readFileSync(filePath)
     const mime = getMime(ext)
-    const dataUrl = `data:${mime};base64,${buf.toString('base64')}`
+    const base64 = buf.toString('base64')   // raw base64, no data: prefix
 
     const IMAGE_EXTS = /^(jpg|jpeg|png|gif|webp)$/
     const VIDEO_EXTS = /^(mp4|mov|avi|webm|3gp)$/
@@ -164,16 +164,16 @@ export async function handleSendFile(chatId: string): Promise<{ ok: boolean; err
     let msgType: string
 
     if (IMAGE_EXTS.test(ext)) {
-      const r = await client.sendImage(chatId, dataUrl)
+      const r = await client.sendImage(chatId, base64, mime, name)
       messageId = r.messageId; msgType = 'image'
     } else if (VIDEO_EXTS.test(ext)) {
-      const r = await client.sendVideo(chatId, dataUrl)
+      const r = await client.sendVideo(chatId, base64, mime, name)
       messageId = r.messageId; msgType = 'video'
     } else if (AUDIO_EXTS.test(ext)) {
-      const r = await client.sendAudio(chatId, dataUrl)
+      const r = await client.sendAudio(chatId, base64, mime, name)
       messageId = r.messageId; msgType = 'audio'
     } else {
-      const r = await client.sendDocument(chatId, dataUrl, name)
+      const r = await client.sendDocument(chatId, base64, mime, name)
       messageId = r.messageId; msgType = 'document'
     }
 
