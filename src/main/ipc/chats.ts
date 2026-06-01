@@ -1,5 +1,5 @@
 import { ipcMain, shell, BrowserWindow } from 'electron'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, rmSync } from 'fs'
 import { join, basename } from 'path'
 import { app } from 'electron'
 import { queryAll, queryOne, run, db, persist } from '../db'
@@ -75,6 +75,20 @@ export function registerChatHandlers(): void {
       : 'unknown'
 
     return { ok: true, dbMessages, txtMessages, mediaInDb, mediaOnDisk, mediaMissing, mediaOmitted, integrity }
+  })
+
+  ipcMain.handle('chats:delete', (_, chatWaId: string) => {
+    const chat = queryOne<{ id: number; name: string }>(`SELECT id, name FROM chats WHERE wa_id = ?`, [chatWaId])
+    if (!chat) return { ok: false, error: 'Chat not found' }
+
+    const chatFolder = join(app.getPath('userData'), 'chats', sanitizeName(chat.name))
+    if (existsSync(chatFolder)) {
+      rmSync(chatFolder, { recursive: true, force: true })
+    }
+
+    db.run(`DELETE FROM chats WHERE id = ?`, [chat.id])
+    persist()
+    return { ok: true }
   })
 
   ipcMain.handle('chats:retry-media', async (_, chatWaId: string) => {

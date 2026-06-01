@@ -29,6 +29,16 @@ export function ImportsPage() {
   const [search, setSearch] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [targetChat, setTargetChat] = useState<DbChat | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async (chat: DbChat) => {
+    setDeleting(true)
+    await window.api.chats.delete(chat.wa_id)
+    window.dispatchEvent(new CustomEvent('whatsinvo:chats-changed'))
+    setConfirmDeleteId(null)
+    setDeleting(false)
+  }
 
   const q = search.toLowerCase()
   const filtered = chats.filter(c =>
@@ -117,6 +127,30 @@ export function ImportsPage() {
                         >
                           ↩ Re-import
                         </button>
+                        {confirmDeleteId === chat.wa_id ? (
+                          <>
+                            <button
+                              onClick={() => handleDelete(chat)}
+                              disabled={deleting}
+                              className="px-3 py-1.5 text-xs text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {deleting ? '…' : 'Confirm'}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="px-3 py-1.5 text-xs text-gray-400 border border-[#2a3942] rounded-lg hover:bg-[#2a3942] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => setConfirmDeleteId(chat.wa_id)}
+                            className="px-3 py-1.5 text-xs text-red-400 border border-red-900 rounded-lg hover:bg-red-900/30 transition-colors"
+                          >
+                            🗑 Delete
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
