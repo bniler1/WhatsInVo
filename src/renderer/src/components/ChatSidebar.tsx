@@ -87,15 +87,31 @@ export function ChatSidebar({ onImport }: ChatSidebarProps) {
           <div className="p-4 text-center text-gray-500 text-sm">
             {search ? 'No chats match your search.' : 'No chats yet. Connect to WhatsApp to sync.'}
           </div>
-        ) : (
-          filtered.map(chat => (
-            <ChatRow
-              key={chat.wa_id}
-              chat={chat}
-              active={chatId ? decodeURIComponent(chatId) === chat.wa_id : false}
-            />
-          ))
-        )}
+        ) : (() => {
+          const synced   = filtered.filter(c => !c.wa_id.startsWith('import:'))
+          const imported = filtered.filter(c =>  c.wa_id.startsWith('import:'))
+          const active   = (chat: DbChat) => chatId ? decodeURIComponent(chatId) === chat.wa_id : false
+          return (
+            <>
+              {synced.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-500 bg-[#0b141a] border-b border-[#2a3942]/50">
+                    💬 Synced Chats
+                  </div>
+                  {synced.map(chat => <ChatRow key={chat.wa_id} chat={chat} active={active(chat)} />)}
+                </>
+              )}
+              {imported.length > 0 && (
+                <>
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-500 bg-[#0b141a] border-b border-[#2a3942]/50">
+                    📥 Imported Chats
+                  </div>
+                  {imported.map(chat => <ChatRow key={chat.wa_id} chat={chat} active={active(chat)} />)}
+                </>
+              )}
+            </>
+          )
+        })()}
       </div>
     </div>
   )

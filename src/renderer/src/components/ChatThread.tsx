@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react'
+import React, { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useMessages } from '../hooks/useMessages'
 import { MessageBubble } from './MessageBubble'
@@ -16,15 +16,28 @@ export function ChatThread() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const isAtBottom = useRef(true)
+  const prevScrollHeight = useRef(0)
+  const preservingScroll = useRef(false)
 
   useEffect(() => {
     if (!decodedId) return
     window.api.chats.get(decodedId).then(c => setChat(c ?? null))
   }, [decodedId])
 
+  // Restore scroll position after loadMore prepends messages
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (preservingScroll.current && el && prevScrollHeight.current) {
+      el.scrollTop = el.scrollHeight - prevScrollHeight.current
+      preservingScroll.current = false
+      prevScrollHeight.current = 0
+    }
+  }, [messages.length])
+
+  // Scroll to bottom when new messages arrive (not when loading older ones)
   useEffect(() => {
-    if (isAtBottom.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (isAtBottom.current && !preservingScroll.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
     }
   }, [messages.length])
 
@@ -32,7 +45,11 @@ export function ChatThread() {
     const el = e.currentTarget
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     isAtBottom.current = distFromBottom < 100
-    if (el.scrollTop < 80) loadMore()
+    if (el.scrollTop < 80 && !preservingScroll.current) {
+      prevScrollHeight.current = el.scrollHeight
+      preservingScroll.current = true
+      loadMore()
+    }
   }, [loadMore])
 
   const displayName = chat?.name || decodedId.split('@')[0]
@@ -116,7 +133,7 @@ export function ChatThread() {
       </div>
 
       <Composer chatWaId={decodedId} onSent={() => {
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }), 100)
       }} />
 
       {showIntegrity && (

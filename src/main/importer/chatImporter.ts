@@ -11,7 +11,7 @@
  *   overwrite – deletes all existing messages for the chat first
  */
 
-import AdmZip from 'adm-zip'
+import extractZip from 'extract-zip'
 import {
   existsSync, mkdirSync, readdirSync, copyFileSync,
   writeFileSync, statSync, readFileSync,
@@ -130,25 +130,52 @@ function emitProgress(p: ImportProgress): void {
 
 // ── ZIP extraction ────────────────────────────────────────────────────────────
 
-function extractZip(
+function findFirstTxt(dir: string): string | null {
+  let entries: string[]
+  try { entries = readdirSync(dir) } catch { return null }
+  for (const entry of entries) {
+    const full = join(dir, entry)
+    let s
+    try { s = statSync(full) } catch { continue }
+    if (s.isDirectory()) {
+      const found = findFirstTxt(full)
+      if (found) return found
+    } else if (/\.txt$/i.test(entry)) {
+      return full
+    }
+  }
+  return null
+}
+
+function collectMediaFiles(dir: string, map: Map<string, string>): void {
+  let entries: string[]
+  try { entries = readdirSync(dir) } catch { return }
+  for (const entry of entries) {
+    const full = join(dir, entry)
+    let s
+    try { s = statSync(full) } catch { continue }
+    if (s.isDirectory()) {
+      collectMediaFiles(full, map)
+    } else if (/\.(jpg|jpeg|png|gif|webp|heic|mp4|mov|3gp|opus|ogg|aac|mp3|m4a|wav|pdf|docx?|xlsx?|pptx?|zip)$/i.test(entry)) {
+      map.set(entry.toLowerCase(), full)
+    }
+  }
+}
+
+async function doExtractZip(
   zipPath: string,
   destDir: string,
   onProgress: (done: number, total: number) => void
-): string | null {
+): Promise<void> {
   mkdirSync(destDir, { recursive: true })
-  const zip = new AdmZip(zipPath)
-  const entries = zip.getEntries()
-  let chatTxt: string | null = null
-
-  entries.forEach((entry, i) => {
-    onProgress(i + 1, entries.length)
-    if (entry.isDirectory) return
-    const name = basename(entry.entryName)
-    const dest = join(destDir, name)
-    zip.extractEntryTo(entry, destDir, false, true)
-    if (/\.txt$/i.test(name) && !chatTxt) chatTxt = dest
+  let done = 0
+  await extractZip(zipPath, {
+    dir: destDir,
+    onEntry: (_entry, zipfile) => {
+      done++
+      onProgress(done, zipfile.entryCount)
+    },
   })
-  return chatTxt
 }
 
 // ── DB writers ────────────────────────────────────────────────────────────────
@@ -270,17 +297,22 @@ export async function importChat(
   emitProgress({ phase: 'Preparing files…', current: 0, total: 1, pct: 2 })
 
   if (ext === '.zip') {
-    const tmpDir = join(app.getPath('temp'), `whatsinvo_import_${Date.now()}`)
-    chatTxtPath = extractZip(sourcePath, tmpDir, (done, total) => {
+    chatName = basename(sourcePath, '.zip')
+      .replace(/^WhatsApp Chat with /i, '').trim() || 'Imported Chat'
+
+    const safeName = sanitizeFolderName(chatName)
+    const tmpDir = join(app.getPath('temp'), `whatsinvo_${safeName}`)
+
+    await doExtractZip(sourcePath, tmpDir, (done, total) => {
       emitProgress({
         phase: 'Extracting ZIP…',
         current: done, total,
         pct: Math.round((done / total) * 20),
       })
     })
+
+    chatTxtPath = findFirstTxt(tmpDir)
     mediaSourceDir = tmpDir
-    chatName = basename(sourcePath, '.zip')
-      .replace(/^WhatsApp Chat with /i, '').trim()
 
   } else if (ext === '.txt') {
     chatTxtPath = sourcePath
@@ -328,14 +360,7 @@ export async function importChat(
   // Build a map: lowercase filename → absolute source path
   const mediaMap = new Map<string, string>()
   if (mediaSourceDir && existsSync(mediaSourceDir)) {
-    try {
-      const allFiles = readdirSync(mediaSourceDir)
-      for (const f of allFiles) {
-        if (/\.(jpg|jpeg|png|gif|webp|heic|mp4|mov|3gp|opus|ogg|aac|mp3|m4a|wav|pdf|docx?|xlsx?|pptx?|zip)$/i.test(f)) {
-          mediaMap.set(f.toLowerCase(), join(mediaSourceDir, f))
-        }
-      }
-    } catch {}
+    collectMediaFiles(mediaSourceDir, mediaMap)
   }
 
   // For each media message, copy the file to chatFolder

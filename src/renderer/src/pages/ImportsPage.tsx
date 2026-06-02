@@ -25,7 +25,7 @@ function Avatar({ chat }: { chat: DbChat }) {
 
 export function ImportsPage() {
   const navigate = useNavigate()
-  const { chats, loading } = useChats()
+  const { chats, loading, refresh } = useChats()
   const [search, setSearch] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [targetChat, setTargetChat] = useState<DbChat | null>(null)
@@ -233,8 +233,9 @@ export function ImportsPage() {
       {/* Import modal */}
       {showImport && (
         <ImportModal
-          onClose={() => { setShowImport(false); setTargetChat(null) }}
+          onClose={() => { setShowImport(false); setTargetChat(null); refresh() }}
           onImportDone={(waId) => {
+            refresh()
             window.dispatchEvent(new CustomEvent('whatsinvo:chats-changed'))
             setShowImport(false)
             setTargetChat(null)

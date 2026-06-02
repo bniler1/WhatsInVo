@@ -12,7 +12,7 @@ export function registerImportHandlers(): void {
         { name: 'WhatsApp Export', extensions: ['zip', 'txt'] },
         { name: 'All Files', extensions: ['*'] },
       ],
-      properties: ['openFile', 'openDirectory'],
+      properties: ['openFile'],
     })
     if (result.canceled || !result.filePaths.length) return null
     return result.filePaths[0]
