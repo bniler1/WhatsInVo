@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, protocol } from 'electron'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } from 'fs'
 import { extname, join } from 'path'
 import { initDb } from './db'
 import { registerIpcHandlers } from './ipc'
@@ -57,10 +57,41 @@ app.whenReady().then(async () => {
         /^\/[A-Za-z]:/.test(pathname) ? pathname.slice(1) : pathname
       )
       if (!existsSync(filePath)) return new Response('Not found', { status: 404 })
+
       const ext = extname(filePath).slice(1).toLowerCase()
+      const mime = MIME[ext] ?? 'application/octet-stream'
+      const fileSize = statSync(filePath).size
+
+      const rangeHeader = request.headers.get('Range')
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d*)-(\d*)/)
+        if (match) {
+          const start = match[1] ? parseInt(match[1], 10) : 0
+          const end   = match[2] ? Math.min(parseInt(match[2], 10), fileSize - 1) : fileSize - 1
+          const chunkSize = end - start + 1
+          const buf = Buffer.alloc(chunkSize)
+          const fd = openSync(filePath, 'r')
+          readSync(fd, buf, 0, chunkSize, start)
+          closeSync(fd)
+          return new Response(buf, {
+            status: 206,
+            headers: {
+              'Content-Type': mime,
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': String(chunkSize),
+            }
+          })
+        }
+      }
+
       const buf = readFileSync(filePath)
       return new Response(buf, {
-        headers: { 'Content-Type': MIME[ext] ?? 'application/octet-stream' }
+        headers: {
+          'Content-Type': mime,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': String(fileSize),
+        }
       })
     } catch (e) {
       return new Response(String(e), { status: 500 })

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { DbMessage } from '../../../shared/types'
+import { PlyrPlayer } from './PlyrPlayer'
 
 function buildMediaUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
@@ -83,11 +84,11 @@ export function MediaViewer({ msg, edgeToEdge }: Props) {
   // ── Video ──────────────────────────────────────────────────────────────────
   if (type === 'video' || mime.startsWith('video/')) {
     return (
-      <video
+      <PlyrPlayer
         src={url!}
-        controls
-        className={`block bg-black ${edgeToEdge ? 'w-full max-h-72' : 'max-w-full max-h-64 rounded-lg m-2'}`}
-        style={edgeToEdge ? { borderRadius: 0 } : undefined}
+        kind="video"
+        mime={mime || 'video/mp4'}
+        className={`block bg-black ${edgeToEdge ? 'w-full' : 'max-w-full rounded-lg m-2 overflow-hidden'}`}
       />
     )
   }
@@ -95,9 +96,14 @@ export function MediaViewer({ msg, edgeToEdge }: Props) {
   // ── Audio / Voice message ──────────────────────────────────────────────────
   if (type === 'audio' || type === 'ptt' || mime.startsWith('audio/')) {
     return (
-      <div className="flex items-center gap-2 m-2 px-2 py-1.5 bg-black/20 rounded-xl">
+      <div className="flex items-center gap-2 m-2 px-2 py-1 bg-black/20 rounded-xl overflow-hidden">
         <span className="text-xl shrink-0">{type === 'ptt' ? '🎤' : '🎵'}</span>
-        <audio src={url!} controls className="flex-1" style={{ height: 36, maxWidth: 230 }} />
+        <PlyrPlayer
+          src={url!}
+          kind="audio"
+          mime={mime || 'audio/mpeg'}
+          className="flex-1 min-w-0"
+        />
       </div>
     )
   }
